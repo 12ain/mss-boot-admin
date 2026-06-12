@@ -59,10 +59,24 @@
 - 账号与令牌管理: 支持 OAuth2 绑定、个人令牌等账号安全能力。
 - 监控与统计: 支持基础监控信息与统计查询接口。
 
+## RBAC 术语表
+
+| 术语 | 在 mss-boot-admin 中的含义 |
+| --- | --- |
+| 用户 | 系统操作者。用户完成认证后，通过被分配的角色获得操作权限。 |
+| 角色 | 存储在 `mss_boot_roles` 中的权限分组，是 Casbin 策略中的主要主体，并可分配给用户。 |
+| 菜单 | 存储在 `mss_boot_menus` 中的前端导航或权限节点，可表示目录、页面、组件或 API 权限节点。 |
+| API | 存储在 `mss_boot_api` 中的后端路由记录，通常由 Gin route 元数据生成，用于接口治理和权限映射。 |
+| 权限路径 | 授权请求和 Casbin rule 中写入的菜单/API path；空路径和重复路径会在构建规则前被过滤。 |
+| Casbin rule | 存储在 `mss_boot_casbin_rule` 中的策略行，常见形态为 `p, roleID, accessType, path, method`。 |
+| Access type | 权限规则范围，例如 `MENU`、`API` 或组件访问；角色授权可以同时包含菜单规则和子 API 规则。 |
+| 数据范围 | 附着在角色上的组织/数据边界，用于限制角色可访问的部门归属数据。 |
+| 默认角色 | 被标记为 default 的角色。创建菜单记录时，可自动授予默认角色对应的菜单访问规则。 |
+
 ## 📦 准备工作
-- 安装golang1.21+
-- 安装mysql8.0+
-- 安装nodejs18.16.0+
+- 安装 Go 1.26+
+- 后端集成测试可选安装 MySQL 8.0+、Redis 7+
+- 前端开发安装 Node.js 22+、pnpm 9+
 
 ## 📦 快速开始
 ### 1. 下载项目
@@ -77,11 +91,12 @@ git clone https://github.com/mss-boot-io/mss-boot-admin-antd.git
 ```shell
 # 进入后端项目
 cd mss-boot-admin
-# 配置数据库连接信息(可根据实际情况修改)
-export DB_DSN="root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8mb4&parseTime=True&loc=Local"
-# 迁移数据库
+# 默认本地配置使用 SQLite: mss-boot-admin-local.db
 go run main.go migrate
 ```
+
+如果要在本地使用 MySQL，可以先启动 `compose/mysql/docker-compose.yml`，再修改
+`config/application.yml` 中的 `database.driver` 与 `database.source`，然后执行迁移命令。
 ### 3. 生成API接口信息
 ```shell
 # 生成api接口信息
@@ -97,10 +112,23 @@ go run main.go server
 # 进入前端项目
 cd mss-boot-admin-antd
 # 安装依赖
-npm install
+corepack enable
+pnpm install
 # 启动前端服务
-npm run start
+pnpm start:dev
 ```
+
+## 本地测试前置条件
+
+`make test` 会执行 `go test -coverprofile=coverage.out ./...`。提交后端 PR 前建议确认：
+
+- 使用 Go 1.26+，与 `go.mod` 和 GitHub Actions 保持一致。
+- 拉取依赖或 `go.sum` 变更后先执行一次 `make deps`。
+- Redis 相关测试通常使用 `miniredis`，但手动验证缓存/session 行为时建议准备本地 Redis 7。
+- `make test` 不需要真实生产 DSN、token、Kubernetes 集群或私有凭据。
+- CI 会通过 `supercharge/redis-github-action` 启动 Redis 7，然后执行 `make deps`、`make test` 和 `make build`。
+
+如果本地测试因为可选外部服务不可用而失败，请在 PR 验证说明中写明具体命令和错误摘要，不要粘贴真实凭据或生产端点。
 
 ## 📨 互动
 <table>
