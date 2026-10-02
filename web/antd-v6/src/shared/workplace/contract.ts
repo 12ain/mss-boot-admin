@@ -12,6 +12,22 @@ export interface WorkplaceContribution {
   component: ComponentType<WorkplaceContext>;
 }
 
+const reactComponentMarkers = new Set([
+  Symbol.for('react.memo'),
+  Symbol.for('react.forward_ref'),
+  Symbol.for('react.lazy'),
+]);
+
+function isWorkplaceComponent(component: unknown): boolean {
+  return (
+    typeof component === 'function' ||
+    (component !== null &&
+      typeof component === 'object' &&
+      '$$typeof' in component &&
+      reactComponentMarkers.has(component.$$typeof as symbol))
+  );
+}
+
 export function defineWorkplaceContributions(
   entries: readonly WorkplaceContribution[],
 ): readonly WorkplaceContribution[] {
@@ -25,7 +41,7 @@ export function defineWorkplaceContributions(
       ids.has(entry.id) ||
       typeof entry.permission !== 'string' ||
       !entry.permission.trim() ||
-      typeof entry.component !== 'function'
+      !isWorkplaceComponent(entry.component)
     ) {
       throw new Error('Invalid or duplicate workplace contribution');
     }

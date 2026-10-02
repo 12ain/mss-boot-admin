@@ -1,9 +1,10 @@
 import entries from '@mss-admin-business/workplace';
 import { hasPermission } from '@mss-admin-core/shared/auth/access';
 import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageLoading } from '@mss-admin-core/shared/design-system/PageState';
 import { useIntl, useModel } from '@umijs/max';
 import { Alert } from 'antd';
-import { Component, type ReactNode } from 'react';
+import { Component, type ReactNode, Suspense } from 'react';
 import { defineWorkplaceContributions, type WorkplaceContribution } from './contract';
 
 class ContributionBoundary extends Component<
@@ -47,7 +48,9 @@ export function WorkplaceContributions({
                   />
                 }
               >
-                <BusinessContent currentUser={user} />
+                <Suspense fallback={<PageLoading rows={2} />}>
+                  <BusinessContent currentUser={user} />
+                </Suspense>
               </ContributionBoundary>
             </div>
           );

@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import { lazy, memo } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentUser } from '../auth/types';
 import { defineWorkplaceContributions } from './contract';
@@ -52,6 +53,9 @@ describe('workplace business contributions', () => {
     expect(() => defineWorkplaceContributions([entry, entry])).toThrow();
     expect(() => defineWorkplaceContributions([{ ...entry, permission: '' }])).toThrow();
     expect(() =>
+      defineWorkplaceContributions([{ ...entry, component: {} as typeof entry.component }]),
+    ).toThrow();
+    expect(() =>
       defineWorkplaceContributions(
         Array.from({ length: 13 }, (_, i) => ({ ...entry, id: `item-${i}` })),
       ),
@@ -59,5 +63,27 @@ describe('workplace business contributions', () => {
     const registered = defineWorkplaceContributions([entry]);
     expect(Object.isFrozen(registered)).toBe(true);
     expect(Object.isFrozen(registered[0])).toBe(true);
+  });
+  it('renders an authorized memo component', () => {
+    session.user = { id: 'reader', permissions: { 'example:read': true } };
+    const entries = defineWorkplaceContributions([
+      { id: 'memo', permission: 'example:read', component: memo(() => <p>Memo contribution</p>) },
+    ]);
+    render(<WorkplaceContributions contributions={entries} />);
+    expect(screen.getByText('Memo contribution')).toBeTruthy();
+  });
+  it('loads a lazy component only after authorization and isolates its loading state', async () => {
+    const load = vi.fn(async () => ({ default: () => <p>Lazy contribution</p> }));
+    const entries = defineWorkplaceContributions([
+      { id: 'lazy', permission: 'example:read', component: lazy(load) },
+      { id: 'ready', permission: 'example:read', component: () => <p>Ready contribution</p> },
+    ]);
+    const view = render(<WorkplaceContributions contributions={entries} />);
+    expect(load).not.toHaveBeenCalled();
+    session.user = { id: 'reader', permissions: { 'example:read': true } };
+    view.rerender(<WorkplaceContributions contributions={entries} />);
+    expect(screen.getByText('Ready contribution')).toBeTruthy();
+    expect(screen.getByRole('status').getAttribute('aria-busy')).toBe('true');
+    expect(await screen.findByText('Lazy contribution')).toBeTruthy();
   });
 });
