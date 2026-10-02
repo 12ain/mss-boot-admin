@@ -20,6 +20,20 @@ It runs a 3-node server cluster with TLS and ACLs enabled.
 - A CA and server certificate for Consul
 - A gossip encryption key
 
+The separate Go client example in this directory uses
+`github.com/hashicorp/consul/api v1.34.5` and requires Go 1.26.7 or newer.
+Validate it independently of the Foundation workspace from the repository root:
+
+```bash
+cd compose/consul
+GOWORK=off go test ./...
+GOWORK=off go build ./...
+GOWORK=off go mod verify
+```
+
+The client dependency update does not upgrade the Consul server image declared
+in the Compose files.
+
 ## 1) Generate a gossip key
 
 ```bash
