@@ -37,6 +37,14 @@ The package also defines the `mss-admin-web` command used by a generated Thin
 Host. Consumers must not import `src/*`, copy core pages, redirect aliases to
 Foundation source, or create a second SPA.
 
+Release builds cap JavaScript and CSS compression at two workers each to avoid
+allocating separate JavaScript heaps for every available CPU core. The production
+compression settings, runtime checks, and bundle budgets continue to apply.
+
+Tailwind scans explicit TS/TSX source roots instead of automatically scanning
+the workspace. Generated Thin Hosts scan both the packaged Admin core and their
+own business sources; the reference application scans its own source tree.
+
 Business routes register together with their menu projection before the final
 403/404 fallbacks. Client access checks improve user experience; backend
 authorization remains authoritative. Retained pages represent loading, empty,

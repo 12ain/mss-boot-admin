@@ -126,6 +126,16 @@ function defineBusinessAdmin(options = {}) {
     chainWebpack(memo) {
       if (environment !== 'release') return memo;
 
+      // CPU-based minifier defaults give each worker an independent V8 heap.
+      for (const minimizer of ['js-terser', 'css-esbuild']) {
+        if (memo.optimization.minimizers.has(minimizer)) {
+          memo.optimization.minimizer(minimizer).tap((args) => {
+            args[0] = { ...args[0], parallel: 2 };
+            return args;
+          });
+        }
+      }
+
       memo.plugin('runtime-graph-stats').use(RuntimeStatsPlugin);
       memo.optimization.runtimeChunk({ name: 'runtime' });
       memo.optimization.splitChunks({

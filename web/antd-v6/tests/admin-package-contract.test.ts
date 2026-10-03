@@ -38,6 +38,14 @@ const mssAdminPlugin = require('../package/mssAdminPlugin.cjs') as (
 const RuntimeStatsPlugin = require('../package/runtime-stats-plugin.cjs') as new () => {
   apply: (compiler: Record<string, unknown>) => void;
 };
+const { compile: compileTailwind } = createRequire(require.resolve('@tailwindcss/postcss'))(
+  '@tailwindcss/node',
+) as {
+  compile: (
+    css: string,
+    options: { base: string },
+  ) => Promise<{ root: unknown; sources: Array<{ base: string; pattern: string }> }>;
+};
 
 describe('Admin web package contract', () => {
   it('exposes only stable public entrypoints', () => {
@@ -184,27 +192,44 @@ describe('Admin web package contract', () => {
     });
   });
 
-  it('deduplicates release dependencies across initial and lazy route chunks', () => {
+  it('deduplicates release chunks and bounds the real Umi compression workers', () => {
     const businessPath = resolve(import.meta.dirname, '../package/business.cjs');
     const output = execFileSync(
       process.execPath,
       [
         '-e',
-        `const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
+        `const { createRequire } = require('node:module');
+const maxRequire = createRequire(require.resolve('@umijs/max/package.json'));
+const umiRequire = createRequire(maxRequire.resolve('umi/package.json'));
+const bundlerRequire = createRequire(umiRequire.resolve('@umijs/bundler-webpack/package.json'));
+const Config = bundlerRequire('./compiled/webpack-5-chain');
+const { addCompressPlugin } = bundlerRequire('./dist/config/compressPlugin');
+const TerserPlugin = bundlerRequire('./compiled/terser-webpack-plugin');
+const CssMinimizerPlugin = bundlerRequire('./compiled/css-minimizer-webpack-plugin');
+const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
 const path = require('node:path');
 const packageRoot = path.resolve(path.dirname(${JSON.stringify(businessPath)}), '..');
-let groups;
 const config = defineBusinessAdmin();
-const memo = {
-  plugin: () => ({ use: () => undefined }),
-  optimization: {
-    runtimeChunk: () => undefined,
-    splitChunks: (value) => { groups = value.cacheGroups; },
-  },
-};
+const memo = new Config();
+(async () => {
+await addCompressPlugin({ config: memo, userConfig: config, env: 'production' });
 config.chainWebpack(memo);
+const groups = memo.toConfig().optimization.splitChunks.cacheGroups;
+const jsMinifier = memo.optimization.minimizer('js-terser').toConfig();
+const cssMinifier = memo.optimization.minimizer('css-esbuild').toConfig();
 const moduleAt = (resource) => ({ nameForCondition: () => resource });
 console.log(JSON.stringify({
+  terser: {
+    parallel: jsMinifier.options.parallel,
+    implementationPreserved: jsMinifier.options.minimizer.implementation === TerserPlugin.terserMinify,
+    extractComments: jsMinifier.options.extractComments,
+    format: jsMinifier.options.minimizer.options.format,
+  },
+  css: {
+    parallel: cssMinifier.options.parallel,
+    implementationPreserved: cssMinifier.options.minimizer.implementation === CssMinimizerPlugin.esbuildMinify,
+    target: cssMinifier.options.minimizer.options.target,
+  },
   chunks: Object.fromEntries(Object.entries(groups).map(([name, value]) => [name, value.chunks])),
   vendorMatches: {
     packageSource: groups.vendors.test(moduleAt(path.resolve(packageRoot, 'src/node_modules/fixture/page.tsx'))),
@@ -212,15 +237,27 @@ console.log(JSON.stringify({
     externalDependency: groups.vendors.test(moduleAt(path.resolve(packageRoot, '../host/node_modules/dayjs/index.js'))),
     hostSource: groups.vendors.test(moduleAt(path.resolve(packageRoot, '../host/src/business/page.tsx'))),
   },
-}));`,
+}));
+})().catch((error) => { console.error(error); process.exitCode = 1; });`,
       ],
       {
         cwd: resolve(import.meta.dirname, '..'),
         encoding: 'utf8',
-        env: { ...process.env, UMI_ENV: 'release' },
+        env: { ...process.env, UMI_ENV: 'release', COMPRESS: '' },
       },
     );
     expect(JSON.parse(output)).toEqual({
+      terser: {
+        parallel: 2,
+        implementationPreserved: true,
+        extractComments: false,
+        format: { comments: false },
+      },
+      css: {
+        parallel: 2,
+        implementationPreserved: true,
+        target: ['chrome120', 'edge120', 'firefox121', 'safari17.4', 'es2015'],
+      },
       chunks: {
         antDesignRuntime: 'all',
         antdRuntime: 'all',
@@ -240,7 +277,51 @@ console.log(JSON.stringify({
     });
   });
 
-  it('resolves generated Tailwind CSS from the Admin Web dependency tree', () => {
+  it.each([
+    ['dev', ''],
+    ['release', 'none'],
+  ])('does not create compression workers for %s with COMPRESS=%s', (environment, compress) => {
+    const businessPath = resolve(import.meta.dirname, '../package/business.cjs');
+    const output = execFileSync(
+      process.execPath,
+      [
+        '-e',
+        `const { createRequire } = require('node:module');
+const maxRequire = createRequire(require.resolve('@umijs/max/package.json'));
+const umiRequire = createRequire(maxRequire.resolve('umi/package.json'));
+const bundlerRequire = createRequire(umiRequire.resolve('@umijs/bundler-webpack/package.json'));
+const Config = bundlerRequire('./compiled/webpack-5-chain');
+const { addCompressPlugin } = bundlerRequire('./dist/config/compressPlugin');
+const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
+(async () => {
+const config = defineBusinessAdmin();
+const memo = new Config();
+await addCompressPlugin({ config: memo, userConfig: config, env: process.env.UMI_ENV === 'release' ? 'production' : 'development' });
+const before = Object.keys(memo.optimization.minimizers.entries() || {});
+config.chainWebpack(memo);
+console.log(JSON.stringify({ before, after: Object.keys(memo.optimization.minimizers.entries() || {}) }));
+})().catch((error) => { console.error(error); process.exitCode = 1; });`,
+      ],
+      {
+        cwd: resolve(import.meta.dirname, '..'),
+        encoding: 'utf8',
+        env: { ...process.env, UMI_ENV: environment, COMPRESS: compress },
+      },
+    );
+    expect(JSON.parse(output)).toEqual({ before: [], after: [] });
+  });
+
+  it('limits reference Tailwind scanning to its explicit TypeScript sources', async () => {
+    const coreSource = resolve(import.meta.dirname, '../src');
+    const css = readFileSync(resolve(coreSource, 'tailwind.css'), 'utf8');
+    const compiled = await compileTailwind(css, { base: coreSource });
+    expect(compiled.root).toBe('none');
+    expect(compiled.sources.map(({ base, pattern }) => resolve(base, pattern))).toEqual([
+      resolve(coreSource, '**/*.{ts,tsx}'),
+    ]);
+  });
+
+  it('resolves generated Tailwind CSS and scans only core and host sources', async () => {
     const absTmpPath = resolve(import.meta.dirname, 'fixtures/external-host/.umi');
     let generateFiles: (() => void) | undefined;
     let generatedFile: { content: string; path: string } | undefined;
@@ -301,12 +382,18 @@ console.log(JSON.stringify({
     generateFiles?.();
     expect(generatedFile).toBeDefined();
     const generated = generatedFile as { content: string; path: string };
-    const importMatch = generated.content.match(/^@import "([^"]+)";/m);
+    const importMatch = generated.content.match(/^@import "([^"]+)" source\(none\);/m);
     expect(importMatch).not.toBeNull();
     expect(resolve(absTmpPath, importMatch?.[1] ?? '')).toBe(
       require.resolve('tailwindcss/index.css'),
     );
-    expect(generated.content).not.toContain('@import "tailwindcss";');
+    expect(generated.content).not.toContain('@import "tailwindcss"');
+    const compiled = await compileTailwind(generated.content, { base: absTmpPath });
+    expect(compiled.root).toBe('none');
+    expect(compiled.sources.map(({ base, pattern }) => resolve(base, pattern))).toEqual([
+      resolve(import.meta.dirname, '../src/**/*.{ts,tsx}'),
+      resolve(import.meta.dirname, 'fixtures/external-host/src/**/*.{ts,tsx}'),
+    ]);
   });
 
   it('creates the stats output directory before emitting the runtime graph', () => {
