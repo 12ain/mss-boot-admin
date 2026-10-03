@@ -43,7 +43,7 @@ const { compile: compileTailwind } = createRequire(require.resolve('@tailwindcss
 ) as {
   compile: (
     css: string,
-    options: { base: string },
+    options: { base: string; onDependency: (path: string) => void },
   ) => Promise<{ root: unknown; sources: Array<{ base: string; pattern: string }> }>;
 };
 
@@ -314,7 +314,7 @@ console.log(JSON.stringify({ before, after: Object.keys(memo.optimization.minimi
   it('limits reference Tailwind scanning to its explicit TypeScript sources', async () => {
     const coreSource = resolve(import.meta.dirname, '../src');
     const css = readFileSync(resolve(coreSource, 'tailwind.css'), 'utf8');
-    const compiled = await compileTailwind(css, { base: coreSource });
+    const compiled = await compileTailwind(css, { base: coreSource, onDependency: () => undefined });
     expect(compiled.root).toBe('none');
     expect(compiled.sources.map(({ base, pattern }) => resolve(base, pattern))).toEqual([
       resolve(coreSource, '**/*.{ts,tsx}'),
@@ -388,7 +388,10 @@ console.log(JSON.stringify({ before, after: Object.keys(memo.optimization.minimi
       require.resolve('tailwindcss/index.css'),
     );
     expect(generated.content).not.toContain('@import "tailwindcss"');
-    const compiled = await compileTailwind(generated.content, { base: absTmpPath });
+    const compiled = await compileTailwind(generated.content, {
+      base: absTmpPath,
+      onDependency: () => undefined,
+    });
     expect(compiled.root).toBe('none');
     expect(compiled.sources.map(({ base, pattern }) => resolve(base, pattern))).toEqual([
       resolve(import.meta.dirname, '../src/**/*.{ts,tsx}'),
