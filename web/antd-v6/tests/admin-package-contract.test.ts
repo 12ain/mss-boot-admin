@@ -280,9 +280,9 @@ const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
 const config = defineBusinessAdmin();
 const memo = new Config();
 await addCompressPlugin({ config: memo, userConfig: config, env: process.env.UMI_ENV === 'release' ? 'production' : 'development' });
-const before = Object.keys(memo.optimization.minimizers.entries());
+const before = Object.keys(memo.optimization.minimizers.entries() || {});
 config.chainWebpack(memo);
-console.log(JSON.stringify({ before, after: Object.keys(memo.optimization.minimizers.entries()) }));
+console.log(JSON.stringify({ before, after: Object.keys(memo.optimization.minimizers.entries() || {}) }));
 })().catch((error) => { console.error(error); process.exitCode = 1; });`,
       ],
       {
