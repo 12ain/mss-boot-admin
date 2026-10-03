@@ -72,7 +72,7 @@ module.exports = function mssAdminPlugin(api) {
   if (resolve(api.paths.absSrcPath) !== coreSource) {
     const generatedTailwind = resolve(api.paths.absTmpPath, 'mss-admin-tailwind.css');
     api.onGenerateFiles(() => {
-      const importDirective = '@import "tailwindcss";';
+      const importDirective = '@import "tailwindcss" source(none);';
       const sourceDirective = '@source "./**/*.{ts,tsx}";';
       const sourcePath = (value) => value.replaceAll('\\', '/');
       const template = readFileSync(tailwindSource, 'utf8');
@@ -87,7 +87,7 @@ module.exports = function mssAdminPlugin(api) {
         ? relativeStyles
         : `./${relativeStyles}`;
       const content = template
-        .replace(importDirective, `@import "${styleSpecifier}";`)
+        .replace(importDirective, `@import "${styleSpecifier}" source(none);`)
         .replace(
           sourceDirective,
           [

@@ -38,6 +38,14 @@ const mssAdminPlugin = require('../package/mssAdminPlugin.cjs') as (
 const RuntimeStatsPlugin = require('../package/runtime-stats-plugin.cjs') as new () => {
   apply: (compiler: Record<string, unknown>) => void;
 };
+const { compile: compileTailwind } = createRequire(require.resolve('@tailwindcss/postcss'))(
+  '@tailwindcss/node',
+) as {
+  compile: (
+    css: string,
+    options: { base: string },
+  ) => Promise<{ root: unknown; sources: Array<{ base: string; pattern: string }> }>;
+};
 
 describe('Admin web package contract', () => {
   it('exposes only stable public entrypoints', () => {
@@ -303,7 +311,17 @@ console.log(JSON.stringify({ before, after: Object.keys(memo.optimization.minimi
     expect(JSON.parse(output)).toEqual({ before: [], after: [] });
   });
 
-  it('resolves generated Tailwind CSS from the Admin Web dependency tree', () => {
+  it('limits reference Tailwind scanning to its explicit TypeScript sources', async () => {
+    const coreSource = resolve(import.meta.dirname, '../src');
+    const css = readFileSync(resolve(coreSource, 'tailwind.css'), 'utf8');
+    const compiled = await compileTailwind(css, { base: coreSource });
+    expect(compiled.root).toBe('none');
+    expect(compiled.sources.map(({ base, pattern }) => resolve(base, pattern))).toEqual([
+      resolve(coreSource, '**/*.{ts,tsx}'),
+    ]);
+  });
+
+  it('resolves generated Tailwind CSS and scans only core and host sources', async () => {
     const absTmpPath = resolve(import.meta.dirname, 'fixtures/external-host/.umi');
     let generateFiles: (() => void) | undefined;
     let generatedFile: { content: string; path: string } | undefined;
@@ -364,12 +382,18 @@ console.log(JSON.stringify({ before, after: Object.keys(memo.optimization.minimi
     generateFiles?.();
     expect(generatedFile).toBeDefined();
     const generated = generatedFile as { content: string; path: string };
-    const importMatch = generated.content.match(/^@import "([^"]+)";/m);
+    const importMatch = generated.content.match(/^@import "([^"]+)" source\(none\);/m);
     expect(importMatch).not.toBeNull();
     expect(resolve(absTmpPath, importMatch?.[1] ?? '')).toBe(
       require.resolve('tailwindcss/index.css'),
     );
-    expect(generated.content).not.toContain('@import "tailwindcss";');
+    expect(generated.content).not.toContain('@import "tailwindcss"');
+    const compiled = await compileTailwind(generated.content, { base: absTmpPath });
+    expect(compiled.root).toBe('none');
+    expect(compiled.sources.map(({ base, pattern }) => resolve(base, pattern))).toEqual([
+      resolve(import.meta.dirname, '../src/**/*.{ts,tsx}'),
+      resolve(import.meta.dirname, 'fixtures/external-host/src/**/*.{ts,tsx}'),
+    ]);
   });
 
   it('creates the stats output directory before emitting the runtime graph', () => {
