@@ -111,12 +111,14 @@ function defineBusinessAdmin(options = {}) {
     chainWebpack(memo) {
       if (environment !== 'release') return memo;
 
-      // Terser's CPU-based default gives each worker an independent V8 heap.
-      if (memo.optimization.minimizers.has('js-terser')) {
-        memo.optimization.minimizer('js-terser').tap((args) => {
-          args[0] = { ...args[0], parallel: 2 };
-          return args;
-        });
+      // CPU-based minifier defaults give each worker an independent V8 heap.
+      for (const minimizer of ['js-terser', 'css-esbuild']) {
+        if (memo.optimization.minimizers.has(minimizer)) {
+          memo.optimization.minimizer(minimizer).tap((args) => {
+            args[0] = { ...args[0], parallel: 2 };
+            return args;
+          });
+        }
       }
 
       memo.plugin('runtime-graph-stats').use(RuntimeStatsPlugin);

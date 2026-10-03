@@ -184,7 +184,7 @@ describe('Admin web package contract', () => {
     });
   });
 
-  it('deduplicates release chunks and bounds the real Umi Terser workers', () => {
+  it('deduplicates release chunks and bounds the real Umi compression workers', () => {
     const businessPath = resolve(import.meta.dirname, '../package/business.cjs');
     const output = execFileSync(
       process.execPath,
@@ -197,6 +197,7 @@ const bundlerRequire = createRequire(umiRequire.resolve('@umijs/bundler-webpack/
 const Config = bundlerRequire('./compiled/webpack-5-chain');
 const { addCompressPlugin } = bundlerRequire('./dist/config/compressPlugin');
 const TerserPlugin = bundlerRequire('./compiled/terser-webpack-plugin');
+const CssMinimizerPlugin = bundlerRequire('./compiled/css-minimizer-webpack-plugin');
 const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
 const path = require('node:path');
 const packageRoot = path.resolve(path.dirname(${JSON.stringify(businessPath)}), '..');
@@ -204,10 +205,10 @@ const config = defineBusinessAdmin();
 const memo = new Config();
 (async () => {
 await addCompressPlugin({ config: memo, userConfig: config, env: 'production' });
-const cssParallel = memo.optimization.minimizer('css-esbuild').toConfig().options.parallel;
 config.chainWebpack(memo);
 const groups = memo.toConfig().optimization.splitChunks.cacheGroups;
 const jsMinifier = memo.optimization.minimizer('js-terser').toConfig();
+const cssMinifier = memo.optimization.minimizer('css-esbuild').toConfig();
 const moduleAt = (resource) => ({ nameForCondition: () => resource });
 console.log(JSON.stringify({
   terser: {
@@ -216,7 +217,11 @@ console.log(JSON.stringify({
     extractComments: jsMinifier.options.extractComments,
     format: jsMinifier.options.minimizer.options.format,
   },
-  cssParallelPreserved: memo.optimization.minimizer('css-esbuild').toConfig().options.parallel === cssParallel,
+  css: {
+    parallel: cssMinifier.options.parallel,
+    implementationPreserved: cssMinifier.options.minimizer.implementation === CssMinimizerPlugin.esbuildMinify,
+    target: cssMinifier.options.minimizer.options.target,
+  },
   chunks: Object.fromEntries(Object.entries(groups).map(([name, value]) => [name, value.chunks])),
   vendorMatches: {
     packageSource: groups.vendors.test(moduleAt(path.resolve(packageRoot, 'src/node_modules/fixture/page.tsx'))),
@@ -240,7 +245,11 @@ console.log(JSON.stringify({
         extractComments: false,
         format: { comments: false },
       },
-      cssParallelPreserved: true,
+      css: {
+        parallel: 2,
+        implementationPreserved: true,
+        target: ['chrome120', 'edge120', 'firefox121', 'safari17.4', 'es2015'],
+      },
       chunks: {
         antDesignRuntime: 'all',
         antdRuntime: 'all',
@@ -263,7 +272,7 @@ console.log(JSON.stringify({
   it.each([
     ['dev', ''],
     ['release', 'none'],
-  ])('does not create a Terser minimizer for %s with COMPRESS=%s', (environment, compress) => {
+  ])('does not create compression workers for %s with COMPRESS=%s', (environment, compress) => {
     const businessPath = resolve(import.meta.dirname, '../package/business.cjs');
     const output = execFileSync(
       process.execPath,

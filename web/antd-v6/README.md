@@ -37,8 +37,8 @@ The package also defines the `mss-admin-web` command used by a generated Thin
 Host. Consumers must not import `src/*`, copy core pages, redirect aliases to
 Foundation source, or create a second SPA.
 
-Release builds cap Terser compression at two workers to avoid allocating a
-separate JavaScript heap for every available CPU core. The production
+Release builds cap JavaScript and CSS compression at two workers each to avoid
+allocating separate JavaScript heaps for every available CPU core. The production
 compression settings, runtime checks, and bundle budgets continue to apply.
 
 Business routes register together with their menu projection before the final
