@@ -184,27 +184,39 @@ describe('Admin web package contract', () => {
     });
   });
 
-  it('deduplicates release dependencies across initial and lazy route chunks', () => {
+  it('deduplicates release chunks and bounds the real Umi Terser workers', () => {
     const businessPath = resolve(import.meta.dirname, '../package/business.cjs');
     const output = execFileSync(
       process.execPath,
       [
         '-e',
-        `const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
+        `const { createRequire } = require('node:module');
+const maxRequire = createRequire(require.resolve('@umijs/max/package.json'));
+const umiRequire = createRequire(maxRequire.resolve('umi/package.json'));
+const bundlerRequire = createRequire(umiRequire.resolve('@umijs/bundler-webpack/package.json'));
+const Config = bundlerRequire('./compiled/webpack-5-chain');
+const { addCompressPlugin } = bundlerRequire('./dist/config/compressPlugin');
+const TerserPlugin = bundlerRequire('./compiled/terser-webpack-plugin');
+const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
 const path = require('node:path');
 const packageRoot = path.resolve(path.dirname(${JSON.stringify(businessPath)}), '..');
-let groups;
 const config = defineBusinessAdmin();
-const memo = {
-  plugin: () => ({ use: () => undefined }),
-  optimization: {
-    runtimeChunk: () => undefined,
-    splitChunks: (value) => { groups = value.cacheGroups; },
-  },
-};
+const memo = new Config();
+(async () => {
+await addCompressPlugin({ config: memo, userConfig: config, env: 'production' });
+const cssParallel = memo.optimization.minimizer('css-esbuild').toConfig().options.parallel;
 config.chainWebpack(memo);
+const groups = memo.toConfig().optimization.splitChunks.cacheGroups;
+const jsMinifier = memo.optimization.minimizer('js-terser').toConfig();
 const moduleAt = (resource) => ({ nameForCondition: () => resource });
 console.log(JSON.stringify({
+  terser: {
+    parallel: jsMinifier.options.parallel,
+    implementationPreserved: jsMinifier.options.minimizer.implementation === TerserPlugin.terserMinify,
+    extractComments: jsMinifier.options.extractComments,
+    format: jsMinifier.options.minimizer.options.format,
+  },
+  cssParallelPreserved: memo.optimization.minimizer('css-esbuild').toConfig().options.parallel === cssParallel,
   chunks: Object.fromEntries(Object.entries(groups).map(([name, value]) => [name, value.chunks])),
   vendorMatches: {
     packageSource: groups.vendors.test(moduleAt(path.resolve(packageRoot, 'src/node_modules/fixture/page.tsx'))),
@@ -212,15 +224,23 @@ console.log(JSON.stringify({
     externalDependency: groups.vendors.test(moduleAt(path.resolve(packageRoot, '../host/node_modules/dayjs/index.js'))),
     hostSource: groups.vendors.test(moduleAt(path.resolve(packageRoot, '../host/src/business/page.tsx'))),
   },
-}));`,
+}));
+})().catch((error) => { console.error(error); process.exitCode = 1; });`,
       ],
       {
         cwd: resolve(import.meta.dirname, '..'),
         encoding: 'utf8',
-        env: { ...process.env, UMI_ENV: 'release' },
+        env: { ...process.env, UMI_ENV: 'release', COMPRESS: '' },
       },
     );
     expect(JSON.parse(output)).toEqual({
+      terser: {
+        parallel: 2,
+        implementationPreserved: true,
+        extractComments: false,
+        format: { comments: false },
+      },
+      cssParallelPreserved: true,
       chunks: {
         antDesignRuntime: 'all',
         antdRuntime: 'all',
@@ -238,6 +258,40 @@ console.log(JSON.stringify({
         hostSource: false,
       },
     });
+  });
+
+  it.each([
+    ['dev', ''],
+    ['release', 'none'],
+  ])('does not create a Terser minimizer for %s with COMPRESS=%s', (environment, compress) => {
+    const businessPath = resolve(import.meta.dirname, '../package/business.cjs');
+    const output = execFileSync(
+      process.execPath,
+      [
+        '-e',
+        `const { createRequire } = require('node:module');
+const maxRequire = createRequire(require.resolve('@umijs/max/package.json'));
+const umiRequire = createRequire(maxRequire.resolve('umi/package.json'));
+const bundlerRequire = createRequire(umiRequire.resolve('@umijs/bundler-webpack/package.json'));
+const Config = bundlerRequire('./compiled/webpack-5-chain');
+const { addCompressPlugin } = bundlerRequire('./dist/config/compressPlugin');
+const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
+(async () => {
+const config = defineBusinessAdmin();
+const memo = new Config();
+await addCompressPlugin({ config: memo, userConfig: config, env: process.env.UMI_ENV === 'release' ? 'production' : 'development' });
+const before = Object.keys(memo.optimization.minimizers.entries());
+config.chainWebpack(memo);
+console.log(JSON.stringify({ before, after: Object.keys(memo.optimization.minimizers.entries()) }));
+})().catch((error) => { console.error(error); process.exitCode = 1; });`,
+      ],
+      {
+        cwd: resolve(import.meta.dirname, '..'),
+        encoding: 'utf8',
+        env: { ...process.env, UMI_ENV: environment, COMPRESS: compress },
+      },
+    );
+    expect(JSON.parse(output)).toEqual({ before: [], after: [] });
   });
 
   it('resolves generated Tailwind CSS from the Admin Web dependency tree', () => {
