@@ -19,6 +19,13 @@ tag namespaces.
   memory, ADR status notes, and component changelog labels so v1.3.7 is the sole
   current stable and adoptable Distribution while older releases remain clearly
   time-scoped historical evidence.
+- Update GitHub Actions dependencies to pnpm/action-setup 6.1.0,
+  softprops/action-gh-release 3.0.3, github/codeql-action 4.38.2,
+  docker/setup-qemu-action 4.4.0, docker/setup-buildx-action 4.4.1,
+  docker/build-push-action 7.4.0, and cloudflare/wrangler-action 4.1.3.
+  Existing commit-pinned actions remain pinned to the corresponding upstream
+  release commits. The updates retain Node 24 execution and the existing
+  release permissions, merged-main qualification, and publication gates.
 
 ### Fixed
 
