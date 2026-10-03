@@ -314,7 +314,10 @@ console.log(JSON.stringify({ before, after: Object.keys(memo.optimization.minimi
   it('limits reference Tailwind scanning to its explicit TypeScript sources', async () => {
     const coreSource = resolve(import.meta.dirname, '../src');
     const css = readFileSync(resolve(coreSource, 'tailwind.css'), 'utf8');
-    const compiled = await compileTailwind(css, { base: coreSource, onDependency: () => undefined });
+    const compiled = await compileTailwind(css, {
+      base: coreSource,
+      onDependency: () => undefined,
+    });
     expect(compiled.root).toBe('none');
     expect(compiled.sources.map(({ base, pattern }) => resolve(base, pattern))).toEqual([
       resolve(coreSource, '**/*.{ts,tsx}'),
