@@ -64,6 +64,33 @@ mss eval report
 Eval 衡量 Agent 是否遵守规格、边界、生成幂等、迁移、权限和验证合同；它不替代产品
 测试或浏览器验收。
 
+## 基础 CRUD 生成测试的可选配置
+
+本节适用于 PR #593 中尚未发布的 Foundation 源码修复。验收范围由
+[`generated-service-test-shapes` Feature](../../../.mss/features/generated-service-test-shapes.yaml)
+定义。模块没有事件、正则校验、字符串长度校验或搜索字段时，生成器应只输出实际使用的
+变量、导入和查询表达式；只有布尔或枚举字段的模块也应能编译并执行后端测试。
+
+当前稳定版 v1.3.7 工具和依赖保持原有行为；采用修复需要等待包含该变更的合格发行版。
+
+生成的服务测试分别验证分页、搜索和每个筛选条件。分页检查未筛选数据的总数与页面大小；
+搜索根据可搜索字段中的实际值判断匹配记录，不能假定两条记录一定只命中一条。例如两条
+记录共享可搜索字符串的默认值时，搜索应返回两条；即使布尔筛选能区分这两条记录，也不能
+把该筛选带入搜索断言来掩盖错误的预期。每个字段的筛选另行检查返回总数与记录值。
+
+修改生成器后，在 Foundation 源码仓库根目录执行：
+
+```sh
+GOWORK=off go test -count=1 ./internal/mss/generator -run '^TestGeneratedServiceOptionalEventsAndPatterns$'
+GOWORK=off go test -count=1 ./internal/mss/spec ./internal/mss/generator
+```
+
+该配置矩阵在临时消费者模块中执行生成的 Go 测试，并检查连续两次生成没有变化、生成结果
+没有漂移；临时本地依赖替换只用于源码贡献者验证。采用包含修复的发行版后，已有模块应先
+通过 `mss spec validate` 验证规格，再审查 `mss module generate` 的默认 dry-run，使用
+`--write` 更新并重跑 `--check`，不要手改生成文件。
+MySQL/PostgreSQL 测试另需配置受限的测试数据库；未配置时的跳过结果不构成提供者验证通过。
+
 ## 按影响增加证据
 
 | 变化 | 最低附加证据 |

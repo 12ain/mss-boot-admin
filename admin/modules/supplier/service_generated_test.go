@@ -60,7 +60,6 @@ func TestSupplierServiceCRUDQueryExportAndPostCommitEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
-
 	invalid := validSupplierInput()
 	invalid.Code = "invalid value"
 	if _, err := service.Create(context.Background(), invalid); err == nil {
@@ -115,21 +114,98 @@ func TestSupplierServiceCRUDQueryExportAndPostCommitEvents(t *testing.T) {
 	}
 
 	query := ListSupplierQuery{
-		Current:     1,
-		PageSize:    1,
-		SortBy:      "code",
-		SortOrder:   "asc",
-		Q:           input.Code,
-		Country:     input.Country,
-		CreditLevel: input.CreditLevel,
-		Enabled:     input.Enabled,
+		Current:   1,
+		PageSize:  1,
+		SortBy:    "code",
+		SortOrder: "asc",
 	}
 	page, err := service.List(context.Background(), query)
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
-	if page.Total != 1 || len(page.Data) != 1 || page.Data[0].ID != created.ID {
+	if page.Total != 2 || len(page.Data) != 1 || (page.Data[0].ID != created.ID && page.Data[0].ID != second.ID) {
 		t.Fatalf("List() = %#v", page)
+	}
+	searchQuery := ListSupplierQuery{Q: input.Code, Current: 1, PageSize: 10}
+	searchTerm := strings.ToLower(strings.TrimSpace(searchQuery.Q))
+	wantSearchIDs := make(map[string]bool)
+	for _, item := range []*Supplier{created, second} {
+		// Search is a literal substring match across every searchable field.
+		// Defaults can make both records match, independently of their filters.
+		if strings.Contains(strings.ToLower(item.Code), searchTerm) || strings.Contains(strings.ToLower(item.Name), searchTerm) || strings.Contains(strings.ToLower(item.ContactName), searchTerm) {
+			wantSearchIDs[item.ID] = true
+		}
+	}
+	wantSearchTotal := len(wantSearchIDs)
+	page, err = service.List(context.Background(), searchQuery)
+	if err != nil || page.Total != int64(wantSearchTotal) || len(page.Data) != wantSearchTotal {
+		t.Fatalf("List(search) = %#v, error = %v", page, err)
+	}
+	for _, item := range page.Data {
+		if !wantSearchIDs[item.ID] {
+			t.Fatalf("List(search) returned an unexpected or duplicate record: %#v", item)
+		}
+		delete(wantSearchIDs, item.ID)
+	}
+	if len(wantSearchIDs) != 0 {
+		t.Fatalf("List(search) omitted matching records: %#v", wantSearchIDs)
+	}
+	{
+		value := created.Country
+		filtered := ListSupplierQuery{Current: 1, PageSize: 10,
+			Country: value,
+		}
+		wantTotal := int64(1)
+		if created.Country == second.Country {
+			wantTotal = 2
+		}
+		result, listErr := service.List(context.Background(), filtered)
+		if listErr != nil || result.Total != wantTotal || int64(len(result.Data)) != wantTotal {
+			t.Fatalf("List(country filter) = %#v, error = %v", result, listErr)
+		}
+		for _, item := range result.Data {
+			if item.Country != value {
+				t.Fatalf("List(country filter) returned a mismatched record: %#v", item)
+			}
+		}
+	}
+	{
+		value := created.CreditLevel
+		filtered := ListSupplierQuery{Current: 1, PageSize: 10,
+			CreditLevel: value,
+		}
+		wantTotal := int64(1)
+		if created.CreditLevel == second.CreditLevel {
+			wantTotal = 2
+		}
+		result, listErr := service.List(context.Background(), filtered)
+		if listErr != nil || result.Total != wantTotal || int64(len(result.Data)) != wantTotal {
+			t.Fatalf("List(creditLevel filter) = %#v, error = %v", result, listErr)
+		}
+		for _, item := range result.Data {
+			if item.CreditLevel != value {
+				t.Fatalf("List(creditLevel filter) returned a mismatched record: %#v", item)
+			}
+		}
+	}
+	{
+		value := created.Enabled
+		filtered := ListSupplierQuery{Current: 1, PageSize: 10,
+			Enabled: &value,
+		}
+		wantTotal := int64(1)
+		if created.Enabled == second.Enabled {
+			wantTotal = 2
+		}
+		result, listErr := service.List(context.Background(), filtered)
+		if listErr != nil || result.Total != wantTotal || int64(len(result.Data)) != wantTotal {
+			t.Fatalf("List(enabled filter) = %#v, error = %v", result, listErr)
+		}
+		for _, item := range result.Data {
+			if item.Enabled != value {
+				t.Fatalf("List(enabled filter) returned a mismatched record: %#v", item)
+			}
+		}
 	}
 	updatedValue := "VALUE_02"
 	updated, err := service.Update(context.Background(), created.ID, &UpdateSupplierInput{Name: &updatedValue})

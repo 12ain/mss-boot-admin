@@ -266,6 +266,7 @@ func (service *Service) Export(ctx context.Context, query List{{ .ModelName }}Qu
 }
 
 func apply{{ .ModelName }}Query(db *gorm.DB, query List{{ .ModelName }}Query) *gorm.DB {
+{{- if .SearchFields }}
 	if query.Q != "" {
 		pattern := "%" + escapeLike(strings.ToLower(query.Q)) + "%"
 		db = db.Where(
@@ -279,6 +280,7 @@ func apply{{ .ModelName }}Query(db *gorm.DB, query List{{ .ModelName }}Query) *g
 {{- end }}
 		)
 	}
+{{- end }}
 {{- range .FilterFields }}
 {{- if .IsBool }}
 	if query.{{ .GoName }} != nil {

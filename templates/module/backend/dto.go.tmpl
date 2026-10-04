@@ -11,7 +11,7 @@ import (
 {{- if .NeedsRegexp }}
 	"regexp"
 {{- end }}
-{{- if .HasTextFields }}
+{{- if .NeedsRuneCount }}
 	"unicode/utf8"
 {{- end }}
 )

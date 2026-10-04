@@ -1,0 +1,72 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: generated-service-test-shapes
+  displayName: Compile and execute ordinary generated service test shapes
+  description: Fix conditional imports and fixtures for optional events and validation.
+  owner: agent-infrastructure
+spec:
+  problem: Ordinary valid modules without domain events, regex validation, length validation, or search fields produce unused Go variables or imports. Generated pagination and provider tests also assume optional search and uniqueness constraints exist.
+  goals:
+    - Compile and execute generated modules with every combination of optional events and patterns.
+    - Preserve module semantics, complete generated tests, two-run idempotency, and drift checks.
+    - Support modules with only boolean or enum fields and no searchable field.
+    - Verify exact search matches when records share a default value or match through another searchable field.
+  nonGoals:
+    - Add business fields or validations to avoid generator defects.
+    - Change Distribution versions, publish a release, or alter installed stable tools.
+  actors:
+    - id: module-author
+      displayName: Module author
+      description: Generates an ordinary CRUD service from a valid module specification.
+  modules:
+    - name: backend-generator
+      kind: infrastructure
+      operation: extend
+      description: Conditional service-test fixtures and DTO imports.
+  requirements:
+    - id: valid-optional-shapes
+      title: Generate compilable tests for optional features
+      description: Emit variables and imports only when their corresponding generated operations exist.
+      priority: must
+      actor: module-author
+      module: backend-generator
+      rules:
+        - The event type switch exists only when domain events are declared.
+        - The invalid pattern fixture exists only when pattern validation exists.
+        - The unicode rune-count import exists only when string length validation exists.
+        - Search expressions exist only when searchable fields are declared.
+        - Pagination, search, and each filter are tested independently without assuming filtering reduces two rows to one.
+        - Search assertions compare exact record IDs and counts against case-insensitive literal substring matches across all searchable fields, including shared defaults.
+        - Provider conflict tests are emitted only for declared unique constraints; created records always have distinct IDs.
+        - Generated source is verified by actual Go compilation and test execution in disposable consumer modules.
+  constraints:
+    - id: contributor-evidence
+      type: operations
+      statement: Temporary local Admin and Framework replacements provide contributor evidence only; formal distribution pins and release identity remain unchanged.
+  acceptance:
+    - id: four-shapes
+      requirement: valid-optional-shapes
+      statement: Modules with neither optional feature, only events, only a pattern, both features, no search, only bool, only enum, shared searchable defaults, and matches through another searchable field compile and pass their generated SQLite backend tests, remain idempotent, and pass drift checks. MySQL/PostgreSQL execution requires separate configured provider databases.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: go test -count=1 ./internal/mss/generator -run TestGeneratedServiceOptionalEventsAndPatterns
+    - id: contracts-preserved
+      requirement: valid-optional-shapes
+      statement: Specification schema, generator golden assertions, and path confinement tests remain passing.
+      level: unit
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: go test -count=1 ./internal/mss/spec ./internal/mss/generator
+  validation:
+    changed: go test -count=1 ./internal/mss/spec ./internal/mss/generator
+    all: make test-all
+  rollout:
+    strategy: direct
+    migration: No database or permission changes. Existing generated modules receive the template fix only through reviewed regeneration with a future qualified tool release.
+    rollback: Revert the template and projection change; do not overwrite downstream handwritten files.

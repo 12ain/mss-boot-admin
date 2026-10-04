@@ -349,6 +349,7 @@ type templateData struct {
 	NeedsTime                      bool
 	HasTextFields                  bool
 	NeedsRegexp                    bool
+	NeedsRuneCount                 bool
 	NeedsEmail                     bool
 	Fields                         []fieldData
 	SearchFields                   []fieldData
@@ -680,6 +681,9 @@ func buildTemplateData(module *spec.Module) (templateData, error) {
 		}
 		if field.Validation.Pattern != "" {
 			data.NeedsRegexp = true
+		}
+		if mapped.HasMinLength || mapped.HasMaxLength {
+			data.NeedsRuneCount = true
 		}
 		if field.Validation.Format == "email" {
 			data.NeedsEmail = true

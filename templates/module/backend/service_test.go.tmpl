@@ -27,12 +27,14 @@ type collecting{{ .ModelName }}Events struct {
 func (collector *collecting{{ .ModelName }}Events) Collect(_ context.Context, event DomainEvent) {
 	var count int64
 	resourceID := ""
+{{- if .Events }}
 	switch typed := event.(type) {
 {{- range .Events }}
 	case {{ .TypeName }}:
 		resourceID = typed.ResourceID
 {{- end }}
 	}
+{{- end }}
 	committed := collector.db.Model(new({{ .ModelName }})).Where("id = ?", resourceID).Count(&count).Error == nil && count == 1
 	collector.mu.Lock()
 	defer collector.mu.Unlock()
@@ -63,6 +65,7 @@ func Test{{ .ModelName }}ServiceCRUDQueryExportAndPostCommitEvents(t *testing.T)
 		t.Fatalf("NewService() error = %v", err)
 	}
 
+{{- if .NeedsRegexp }}
 	invalid := valid{{ .ModelName }}Input()
 {{- range .Fields }}
 {{- if .HasPattern }}
@@ -70,6 +73,7 @@ func Test{{ .ModelName }}ServiceCRUDQueryExportAndPostCommitEvents(t *testing.T)
 	if _, err := service.Create(context.Background(), invalid); err == nil {
 		t.Fatal("Create(invalid pattern) unexpectedly succeeded")
 	}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -150,20 +154,65 @@ func Test{{ .ModelName }}ServiceCRUDQueryExportAndPostCommitEvents(t *testing.T)
 		PageSize: 1,
 		SortBy: "{{ .PrimarySortName }}",
 		SortOrder: "asc",
-{{- if .HasSearchField }}
-		Q: input.{{ .SearchField.GoName }},
-{{- end }}
-{{- range .FilterFields }}
-		{{ .GoName }}: input.{{ .GoName }},
-{{- end }}
 	}
 	page, err := service.List(context.Background(), query)
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
-	if page.Total != 1 || len(page.Data) != 1 || page.Data[0].ID != created.ID {
+	if page.Total != 2 || len(page.Data) != 1 || (page.Data[0].ID != created.ID && page.Data[0].ID != second.ID) {
 		t.Fatalf("List() = %#v", page)
 	}
+{{- if .HasSearchField }}
+	searchQuery := List{{ .ModelName }}Query{Q: input.{{ .SearchField.GoName }}, Current: 1, PageSize: 10}
+	searchTerm := strings.ToLower(strings.TrimSpace(searchQuery.Q))
+	wantSearchIDs := make(map[string]bool)
+	for _, item := range []*{{ .ModelName }}{created, second} {
+		// Search is a literal substring match across every searchable field.
+		// Defaults can make both records match, independently of their filters.
+		if {{ range $index, $field := .SearchFields }}{{ if $index }} || {{ end }}strings.Contains(strings.ToLower(item.{{ $field.GoName }}), searchTerm){{ end }} {
+			wantSearchIDs[item.ID] = true
+		}
+	}
+	wantSearchTotal := len(wantSearchIDs)
+	page, err = service.List(context.Background(), searchQuery)
+	if err != nil || page.Total != int64(wantSearchTotal) || len(page.Data) != wantSearchTotal {
+		t.Fatalf("List(search) = %#v, error = %v", page, err)
+	}
+	for _, item := range page.Data {
+		if !wantSearchIDs[item.ID] {
+			t.Fatalf("List(search) returned an unexpected or duplicate record: %#v", item)
+		}
+		delete(wantSearchIDs, item.ID)
+	}
+	if len(wantSearchIDs) != 0 {
+		t.Fatalf("List(search) omitted matching records: %#v", wantSearchIDs)
+	}
+{{- end }}
+{{- range .FilterFields }}
+	{
+		value := created.{{ .GoName }}
+		filtered := List{{ $.ModelName }}Query{Current: 1, PageSize: 10,
+{{- if .IsBool }}
+			{{ .GoName }}: &value,
+{{- else }}
+			{{ .GoName }}: value,
+{{- end }}
+		}
+		wantTotal := int64(1)
+		if created.{{ .GoName }} == second.{{ .GoName }} {
+			wantTotal = 2
+		}
+		result, listErr := service.List(context.Background(), filtered)
+		if listErr != nil || result.Total != wantTotal || int64(len(result.Data)) != wantTotal {
+			t.Fatalf("List({{ .JSONName }} filter) = %#v, error = %v", result, listErr)
+		}
+		for _, item := range result.Data {
+			if item.{{ .GoName }} != value {
+				t.Fatalf("List({{ .JSONName }} filter) returned a mismatched record: %#v", item)
+			}
+		}
+	}
+{{- end }}
 
 {{- if .HasUpdateField }}
 	updatedValue := {{ .UpdateField.AlternateFixtureGo }}

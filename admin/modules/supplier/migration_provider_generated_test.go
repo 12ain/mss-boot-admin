@@ -144,6 +144,9 @@ func runSupplierMigrationProviderIntegration(t *testing.T, dialect, environment 
 		if err != nil {
 			t.Fatalf("%s Create(second): %v", dialect, err)
 		}
+		if first.ID == "" || second.ID == "" || first.ID == second.ID {
+			t.Fatalf("%s Create() did not assign distinct IDs: %q, %q", dialect, first.ID, second.ID)
+		}
 		page, err := service.List(context.Background(), ListSupplierQuery{Q: "%", Current: 1, PageSize: 10})
 		if err != nil {
 			t.Fatalf("%s escaped wildcard List(): %v", dialect, err)

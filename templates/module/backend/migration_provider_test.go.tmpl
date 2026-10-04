@@ -63,6 +63,7 @@ func run{{ .ModelName }}MigrationProviderIntegration(t *testing.T, dialect, envi
 		if err := db.Create(valid).Error; err != nil {
 			t.Fatalf("%s create valid row: %v", dialect, err)
 		}
+{{- if .HasUniqueFields }}
 		duplicate := &{{ .ModelName }}{
 {{- range .Fields }}
 			{{ .GoName }}: {{ .FixtureGo }},
@@ -71,6 +72,7 @@ func run{{ .ModelName }}MigrationProviderIntegration(t *testing.T, dialect, envi
 		if err := db.Create(duplicate).Error; err == nil {
 			t.Fatalf("%s unique constraint accepted a duplicate", dialect)
 		}
+{{- end }}
 {{- range .Fields }}
 {{- if .IsEnum }}
 {{- $enum := . }}
@@ -128,9 +130,11 @@ func run{{ .ModelName }}MigrationProviderIntegration(t *testing.T, dialect, envi
 		if err != nil {
 			t.Fatalf("%s Create(first): %v", dialect, err)
 		}
+{{- if .HasUniqueFields }}
 		if _, err := service.Create(context.Background(), valid{{ .ModelName }}Input()); !errors.Is(err, Err{{ .ModelName }}Conflict) {
 			t.Fatalf("%s Create(duplicate without TranslateError) error = %v", dialect, err)
 		}
+{{- end }}
 		secondInput := valid{{ .ModelName }}Input()
 {{- range .Fields }}
 {{- if not .HasDefault }}
@@ -145,6 +149,10 @@ func run{{ .ModelName }}MigrationProviderIntegration(t *testing.T, dialect, envi
 		if err != nil {
 			t.Fatalf("%s Create(second): %v", dialect, err)
 		}
+		if first.ID == "" || second.ID == "" || first.ID == second.ID {
+			t.Fatalf("%s Create() did not assign distinct IDs: %q, %q", dialect, first.ID, second.ID)
+		}
+{{- if .SearchFields }}
 		page, err := service.List(context.Background(), List{{ .ModelName }}Query{Q: "%", Current: 1, PageSize: 10})
 		if err != nil {
 			t.Fatalf("%s escaped wildcard List(): %v", dialect, err)
@@ -152,6 +160,7 @@ func run{{ .ModelName }}MigrationProviderIntegration(t *testing.T, dialect, envi
 		if page.Total != 0 {
 			t.Fatalf("%s escaped wildcard search matched %d rows", dialect, page.Total)
 		}
+{{- end }}
 {{- if .HasUpdateField }}
 		if err := db.Exec("CREATE UNIQUE INDEX ux_{{ .ModuleName }}_provider_update_conflict ON {{ .Table }} ({{ .UpdateField.Column }})").Error; err != nil {
 			t.Fatalf("%s create update conflict index: %v", dialect, err)
