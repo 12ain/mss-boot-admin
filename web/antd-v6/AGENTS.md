@@ -51,8 +51,12 @@ web-v6-build` or `go run ./cmd/mss verify --changed`.
   redirect a Thin Host's `@` alias, or require consumers to copy core pages,
   patches, configuration, or `src/shared`.
 - Core source uses `@mss-admin-core`; `@mss-admin-business/routes` is the
-  generated menu-registration bridge. `@mss-admin-business/workplace` is the
-  compile-time workplace contribution bridge; neither permits core replacement.
+  generated menu-registration bridge. `@mss-admin-business/workplace`,
+  `@mss-admin-business/avatar`, and `@mss-admin-business/layout` are compile-time
+  content bridges for the workplace, avatar panel, and header/footer. They add
+  trusted host content without permitting core replacement. Reuse the shared
+  registration validation and render isolation while retaining each region's
+  public contract and lifecycle.
   Business routes and registrations must
   be injected together before the 403/404 fallbacks.
 

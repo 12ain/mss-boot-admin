@@ -5,6 +5,8 @@ export type {
   CurrentUser,
   InitialState,
 } from '../src/shared/auth/types';
+export type { AvatarContext, AvatarContribution } from '../src/shared/avatar/contract';
+export { defineAvatarContributions } from '../src/shared/avatar/contract';
 export { PageContainer } from '../src/shared/design-system/PageContainer';
 export {
   PageEmpty,
@@ -12,6 +14,8 @@ export {
   PageForbidden,
   PageLoading,
 } from '../src/shared/design-system/PageState';
+export type { LayoutContext, LayoutContribution } from '../src/shared/layout/contributionContract';
+export { defineLayoutContributions } from '../src/shared/layout/contributionContract';
 export { queryClient, queryKeys } from '../src/shared/query/client';
 export type { RouteRegistration } from '../src/shared/routes/registry';
 export type { WorkplaceContext, WorkplaceContribution } from '../src/shared/workplace/contract';

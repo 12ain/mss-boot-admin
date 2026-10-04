@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, type Page, test } from '@playwright/test';
+import { evaluatedContributions, trackContributionEvaluations } from './support/contributions';
 import {
   API_BASE_URL,
   APP_BASE_URL,
@@ -69,6 +70,9 @@ test.describe('V6 authorization boundaries', () => {
     page,
   }) => {
     test.setTimeout(90_000);
+    if (process.env.MSS_V6_AVATAR_PROBE === '1') {
+      await trackContributionEvaluations(page);
+    }
     const rootContext = await browser.newContext();
     const rootPage = await rootContext.newPage();
     await login(rootPage);
@@ -90,6 +94,30 @@ test.describe('V6 authorization boundaries', () => {
       await page.goto('/suppliers');
       await expect(page.getByText('403', { exact: true })).toBeVisible();
       expect(page.url().startsWith(APP_BASE_URL)).toBe(true);
+
+      if (process.env.MSS_V6_AVATAR_PROBE === '1') {
+        for (const position of ['header', 'footer']) {
+          const layoutContent = page.getByTestId(`mss-thin-host-layout-${position}`);
+          await expect(layoutContent).toBeVisible();
+          await expect(layoutContent).toHaveAttribute('data-current-user', credentials.username);
+        }
+        await expect(page.getByTestId('mss-thin-host-layout-permission')).toHaveCount(0);
+        expect(await evaluatedContributions(page)).toContain('layout-self');
+        expect(await evaluatedContributions(page)).not.toContain('layout-permission');
+        const selfContent = page.getByTestId('mss-thin-host-avatar');
+        await expect(selfContent).toHaveCount(0);
+        expect(await evaluatedContributions(page)).not.toContain('avatar-self');
+        await page.getByRole('button', { name: /Open the account menu for / }).click();
+        await expect(selfContent).toBeVisible();
+        await expect(selfContent.getByTestId('avatar-current-user')).toHaveText(
+          credentials.username,
+        );
+        await expect(page.getByTestId('mss-thin-host-avatar-permission')).toHaveCount(0);
+        expect(await evaluatedContributions(page)).toContain('avatar-self');
+        expect(await evaluatedContributions(page)).not.toContain('avatar-permission');
+        await selfContent.getByRole('button', { name: 'Close custom panel', exact: true }).click();
+        await expect(selfContent).toHaveCount(0);
+      }
 
       const deniedList = await page.request.get(`${API_BASE_URL}/suppliers`);
       expect(deniedList.status()).toBe(403);

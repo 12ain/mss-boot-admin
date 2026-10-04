@@ -6,10 +6,34 @@ const packageRoot = resolve(__dirname, '..');
 const coreSource = resolve(packageRoot, 'src');
 const emptyRegistrations = resolve(__dirname, 'empty-route-registrations.ts');
 const emptyWorkplace = resolve(__dirname, 'empty-workplace.ts');
+const emptyAvatar = resolve(__dirname, 'empty-avatar.ts');
+const emptyLayout = resolve(__dirname, 'empty-layout.ts');
 const externalGlobal = resolve(__dirname, 'external-global.ts');
 const logo = resolve(packageRoot, 'public/logo.svg');
 const tailwindSource = resolve(coreSource, 'tailwind.css');
 const tailwindStyles = require.resolve('tailwindcss/index.css');
+
+function resolveAvatarContributions(cwd, configured) {
+  if (configured !== undefined) {
+    if (typeof configured !== 'string' || !configured.trim()) {
+      throw new TypeError('avatarContributions must name a compile-time module.');
+    }
+    return resolve(cwd, configured);
+  }
+  const ownedAvatar = resolve(cwd, 'src/business/avatar.ts');
+  return existsSync(ownedAvatar) ? ownedAvatar : emptyAvatar;
+}
+
+function resolveLayoutContributions(cwd, configured) {
+  if (configured !== undefined) {
+    if (typeof configured !== 'string' || !configured.trim()) {
+      throw new TypeError('layoutContributions must name a compile-time module.');
+    }
+    return resolve(cwd, configured);
+  }
+  const ownedLayout = resolve(cwd, 'src/business/layout.ts');
+  return existsSync(ownedLayout) ? ownedLayout : emptyLayout;
+}
 
 module.exports = function mssAdminPlugin(api) {
   api.describe({
@@ -21,6 +45,8 @@ module.exports = function mssAdminPlugin(api) {
             packageRoot: zod.string(),
             routeRegistrations: zod.string(),
             workplaceContributions: zod.string(),
+            avatarContributions: zod.string(),
+            layoutContributions: zod.string(),
           })
           .partial();
       },
@@ -31,6 +57,8 @@ module.exports = function mssAdminPlugin(api) {
   api.modifyConfig((memo) => {
     const registrations = resolve(api.cwd, memo.mssAdmin?.routeRegistrations || emptyRegistrations);
     const workplace = resolve(api.cwd, memo.mssAdmin?.workplaceContributions || emptyWorkplace);
+    const avatar = resolveAvatarContributions(api.cwd, memo.mssAdmin?.avatarContributions);
+    const layout = resolveLayoutContributions(api.cwd, memo.mssAdmin?.layoutContributions);
     const includes = new Set([...(memo.extraBabelIncludes || []), coreSource]);
     return {
       ...memo,
@@ -39,6 +67,8 @@ module.exports = function mssAdminPlugin(api) {
         '@mss-admin-core': coreSource,
         '@mss-admin-business/routes': registrations,
         '@mss-admin-business/workplace': workplace,
+        '@mss-admin-business/avatar': avatar,
+        '@mss-admin-business/layout': layout,
       },
       extraBabelIncludes: [...includes],
     };
@@ -59,6 +89,12 @@ module.exports = function mssAdminPlugin(api) {
           '@mss-admin-business/routes': [registrations],
           '@mss-admin-business/workplace': [
             resolve(api.cwd, api.config.mssAdmin?.workplaceContributions || emptyWorkplace),
+          ],
+          '@mss-admin-business/avatar': [
+            resolveAvatarContributions(api.cwd, api.config.mssAdmin?.avatarContributions),
+          ],
+          '@mss-admin-business/layout': [
+            resolveLayoutContributions(api.cwd, api.config.mssAdmin?.layoutContributions),
           ],
         },
       },
@@ -128,7 +164,9 @@ module.exports = function mssAdminPlugin(api) {
       api.cwd,
       api.config.mssAdmin?.workplaceContributions || emptyWorkplace,
     );
-    return [coreSource, registrations, workplace, tailwindSource].filter((entry) =>
+    const avatar = resolveAvatarContributions(api.cwd, api.config.mssAdmin?.avatarContributions);
+    const layout = resolveLayoutContributions(api.cwd, api.config.mssAdmin?.layoutContributions);
+    return [coreSource, registrations, workplace, avatar, layout, tailwindSource].filter((entry) =>
       existsSync(entry),
     );
   });

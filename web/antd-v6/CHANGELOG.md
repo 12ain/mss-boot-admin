@@ -6,7 +6,19 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
-No unreleased changes are recorded.
+- Add typed, compile-time Thin Host contributions for the shared avatar panel,
+  header, and footer, preserving official account actions and layout controls.
+- Isolate loading and render failures per contribution, filter visibility before
+  mounting, and reset custom state across identity and session changes. Avatar
+  content unmounts when its panel closes.
+- Keep portaled business controls interactive inside the avatar panel while
+  preserving outside dismissal and keyboard focus behavior.
+- Navigate immediately after verified account/email login or registration, and
+  after successful password recovery, without waiting for the success message
+  to close. Preserve existing same-origin redirects and identity checks.
+- Preserve business-owned registration modules across coordinated upgrades.
+  These additions require a future distribution release and are not available
+  in the published v1.3.7 package.
 
 ## [web/antd-v6/v1.3.7] - 2026-08-31
 

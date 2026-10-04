@@ -20,6 +20,8 @@
       "@mss-admin-core/*": ["./src/*"],
       "@mss-admin-business/routes": ["./src/generated/routes.ts"],
       "@mss-admin-business/workplace": ["./package/empty-workplace.ts"],
+      "@mss-admin-business/avatar": ["./package/empty-avatar.ts"],
+      "@mss-admin-business/layout": ["./package/empty-layout.ts"],
       "@@/*": ["./src/.umi/*"],
       "@@test/*": ["./src/.umi-test/*"]
     }

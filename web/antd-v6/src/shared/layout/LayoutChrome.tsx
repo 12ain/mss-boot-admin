@@ -5,6 +5,7 @@ import { Button, Typography } from 'antd';
 import type { InitialState, StartupFailure } from '../auth/types';
 import { PageError } from '../design-system/PageState';
 import { AvatarMenu, HeaderActions } from './HeaderActions';
+import { LayoutContributions } from './LayoutContributions';
 
 export function StartupFailureView({ failure }: { failure: StartupFailure }) {
   const intl = useIntl();
@@ -126,6 +127,7 @@ export function ApplicationFooter({ initialState }: { initialState?: InitialStat
           <GithubOutlined /> mss-boot-admin
         </Typography.Link>
       </div>
+      <LayoutContributions initialState={initialState} position="footer" />
     </footer>
   );
 }

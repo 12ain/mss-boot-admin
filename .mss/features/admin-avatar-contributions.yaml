@@ -1,0 +1,114 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-avatar-contributions
+  displayName: Compile-time custom content in Admin avatar and layout regions
+  owner: frontend
+  labels:
+    implementation-status: implemented
+    release-status: unreleased
+spec:
+  problem: >-
+    Thin Hosts cannot add owned React content to the shared desktop and mobile
+    avatar panel through a public contract while retaining core account actions.
+  goals:
+    - Provide one optional typed compile-time avatar contribution module.
+    - Share custom content and lifecycle across desktop and mobile avatar panels.
+    - Preserve official account navigation, logout, session cleanup, and empty defaults.
+    - Isolate loading and rendering failures and preserve business files during upgrades.
+    - Add equivalent authenticated content seams in the header and footer using one layout registration module.
+  nonGoals:
+    - Domain-specific fields, APIs, data retrieval, or business rules in Foundation.
+    - Remote scripts, runtime module registration, core replacement, or authentication overrides.
+    - Release publication or changes to the published v1.3.7 distribution.
+  actors:
+    - id: host-author
+      displayName: Thin Host author
+  modules:
+    - name: admin-web
+      kind: infrastructure
+      operation: extend
+  requirements:
+    - id: avatar-content
+      title: Extend the shared avatar popup
+      description: Compose trusted host React content with the official account menu in one popup.
+      priority: must
+      actor: host-author
+      module: admin-web
+      rules:
+        - Use avatarContributions or the conventional src/business/avatar.ts module, with an empty fallback.
+        - Export defineAvatarContributions, AvatarContribution, and AvatarContext from the public runtime.
+        - Context contains the verified currentUser, open state, and close callback.
+        - Require unique bounded IDs and valid React components, including lazy and memo components.
+        - Omitted permission permits authenticated-self content; supplied permissions must be nonblank and pass existing visibility checks.
+        - Do not mount or start lazy imports while closed, unauthenticated, or unauthorized.
+        - Closing unmounts custom content; identity or session changes close the panel and reset local state.
+        - Each contribution has localized loading and error isolation that leaves core account actions usable.
+        - Support click and keyboard opening, Escape and outside dismissal, and appropriate focus return.
+        - Keep custom interaction inside the panel usable without accidental dismissal.
+        - Support narrow screens, both themes and locales, and preserve host-owned files during upgrades.
+    - id: layout-content
+      title: Extend shared header and footer regions
+      description: Append trusted custom content while preserving official layout controls and footer information.
+      priority: must
+      actor: host-author
+      module: admin-web
+      rules:
+        - Use layoutContributions or src/business/layout.ts with an empty fallback and the public defineLayoutContributions helper.
+        - Each entry declares position header or footer, a unique ID, optional visibility permission, and a React component.
+        - LayoutContext contains currentUser and compact; compact identifies the condensed mobile header and is false for the footer.
+        - No identity or failed visibility check means no component mount or lazy import.
+        - Preserve official header actions and footer information; confine custom content to responsive additive regions.
+        - Reset contribution state on identity or session changes and isolate each loading or render failure.
+        - Reuse internal registration and render-isolation primitives with avatar and workplace while preserving their distinct public contracts.
+  constraints:
+    - id: authorization
+      type: security
+      statement: UI visibility never grants backend access; only trusted compile-time host code may register content.
+    - id: compatibility
+      type: compatibility
+      statement: Existing hosts need no managed facade edits; adoption requires a future qualified coordinated distribution.
+  acceptance:
+    - id: typed-contract
+      requirement: avatar-content
+      statement: Registration, visibility, lazy loading, errors, and identity boundaries have positive and negative coverage.
+      level: unit
+      required: true
+      evidence:
+        - type: path
+          value: web/antd-v6/src/shared/avatar/AvatarContributions.test.tsx
+        - type: path
+          value: web/antd-v6/src/shared/layout/HeaderActions.test.tsx
+    - id: package-bridge
+      requirement: avatar-content
+      statement: Empty, conventional, and explicit modules resolve consistently in builds, TypeScript and tests.
+      level: integration
+      required: true
+      evidence:
+        - type: path
+          value: web/antd-v6/tests/avatar-package.test.ts
+    - id: external-host
+      requirement: avatar-content
+      statement: An installed external Thin Host preserves generic custom content across upgrade and retains desktop/mobile account actions.
+      level: e2e
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
+    - id: layout-regions
+      requirement: layout-content
+      statement: Header and footer registrations resolve through the installed package and preserve official content across responsive and identity changes.
+      level: integration
+      required: true
+      evidence:
+        - type: path
+          value: web/antd-v6/src/shared/layout/LayoutContributions.test.tsx
+        - type: path
+          value: web/antd-v6/tests/layout-package.test.ts
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+  rollout:
+    strategy: direct
+    migration: No database or backend API changes; adopt after a coordinated distribution release.
+    rollback: Remove the host registration to return to the official account menu.

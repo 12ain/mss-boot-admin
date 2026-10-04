@@ -73,7 +73,8 @@ export default function EmailChallengeFlowPage({
         const currentUser = await fetchCurrentUser();
         if (!currentUser) throw new Error('Registration did not establish a browser session');
         rotateThemeAuthSession(currentUser.id);
-        await message.success(intl.formatMessage({ id: 'pages.auth.register.success' }));
+        // Navigation must not wait for the success notification to close.
+        void message.success(intl.formatMessage({ id: 'pages.auth.register.success' }));
         const params = new URLSearchParams(history.location.search);
         window.location.replace(resolveSafeRedirect(params.get('redirect')));
         return true;
@@ -84,7 +85,7 @@ export default function EmailChallengeFlowPage({
         captcha: values.captcha,
         password: values.password,
       });
-      await message.success(intl.formatMessage({ id: 'pages.auth.recovery.success' }));
+      void message.success(intl.formatMessage({ id: 'pages.auth.recovery.success' }));
       history.replace('/user/login');
       return true;
     } catch {

@@ -9,6 +9,23 @@ spec:
     legacy: maintained for compatibility, not recommended for new modules
     planned: part of the approved roadmap but not yet implemented
   capabilities:
+    - id: frontend.interface-contributions
+      displayName: Compile-time Avatar and Layout Business Content
+      status: beta
+      owners: [frontend, security]
+      paths:
+        - .mss/features/admin-avatar-contributions.yaml
+        - web/antd-v6/src/shared/avatar
+        - web/antd-v6/src/shared/layout
+        - web/antd-v6/package/business.d.ts
+        - docs/docs/admin/avatar-panel-customization.md
+      guidance: >-
+        Unreleased: not present in published v1.3.7. A future coordinated distribution
+        permits bounded trusted React contributions in the avatar panel, header, and
+        footer. Preserve official actions, use optional visibility permissions for
+        authenticated content, enforce API authorization on the backend, and qualify
+        the installed external Thin Host. Do not embed adopter-specific business rules.
+
     - id: frontend.workplace-contributions
       displayName: Compile-time Workplace Business Content
       status: beta

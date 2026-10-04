@@ -4,21 +4,8 @@ import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { PageLoading } from '@mss-admin-core/shared/design-system/PageState';
 import { useIntl, useModel } from '@umijs/max';
 import { Alert } from 'antd';
-import { Component, type ReactNode, Suspense } from 'react';
+import { IsolatedContribution } from '../contributions/IsolatedContribution';
 import { defineWorkplaceContributions, type WorkplaceContribution } from './contract';
-
-class ContributionBoundary extends Component<
-  { children: ReactNode; fallback: ReactNode },
-  { failed: boolean }
-> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  render() {
-    return this.state.failed ? this.props.fallback : this.props.children;
-  }
-}
 
 const registered = defineWorkplaceContributions(entries);
 
@@ -39,8 +26,9 @@ export function WorkplaceContributions({
           const BusinessContent = item.component;
           return (
             <div className="mb-4" key={`${user.id}:${item.id}`}>
-              <ContributionBoundary
-                fallback={
+              <IsolatedContribution
+                loading={<PageLoading rows={2} />}
+                error={
                   <Alert
                     type="error"
                     showIcon
@@ -48,10 +36,8 @@ export function WorkplaceContributions({
                   />
                 }
               >
-                <Suspense fallback={<PageLoading rows={2} />}>
-                  <BusinessContent currentUser={user} />
-                </Suspense>
-              </ContributionBoundary>
+                <BusinessContent currentUser={user} />
+              </IsolatedContribution>
             </div>
           );
         })}

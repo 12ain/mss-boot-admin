@@ -2,6 +2,8 @@
 
 Status: proposed compile-time extension; not available in published v1.3.7.
 
+For other shared interface regions, see [avatar, header, and footer customization](./avatar-panel-customization.md).
+
 Foundation keeps ownership of `/workplace`, its greeting, quick links, monitoring, authentication and layout. After adopting a coordinated distribution containing this extension, add the business-owned `web/src/business/workplace.ts`:
 
 ```ts

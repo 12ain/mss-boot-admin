@@ -12,6 +12,12 @@ export default defineConfig({
       '@mss-admin-business/workplace': fileURLToPath(
         new URL('./package/empty-workplace.ts', import.meta.url),
       ),
+      '@mss-admin-business/avatar': fileURLToPath(
+        new URL('./package/empty-avatar.ts', import.meta.url),
+      ),
+      '@mss-admin-business/layout': fileURLToPath(
+        new URL('./package/empty-layout.ts', import.meta.url),
+      ),
     },
   },
   test: {

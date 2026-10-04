@@ -1010,6 +1010,147 @@ export default function WorkplaceProbe({ currentUser }: WorkplaceContext) {
   );
 }
 ''',
+    'web/src/business/avatar.ts': r'''import { defineAvatarContributions } from '@mss-boot-io/admin-web/runtime';
+import { lazy } from 'react';
+
+const AvatarProbe = lazy(
+  () => import(/* webpackChunkName: "mss-thin-host-avatar-self" */ './AvatarProbe'),
+);
+const AvatarPermissionProbe = lazy(
+  () => import(/* webpackChunkName: "mss-thin-host-avatar-permission" */ './AvatarPermissionProbe'),
+);
+
+export default defineAvatarContributions([
+  { id: 'compatibility-avatar-self', component: AvatarProbe },
+  {
+    id: 'compatibility-avatar-permission',
+    permission: '/compatibility-probe',
+    component: AvatarPermissionProbe,
+  },
+]);
+''',
+    'web/src/business/AvatarProbe.tsx': r'''import type { AvatarContext } from '@mss-boot-io/admin-web/runtime';
+import { Button, Input, Space } from 'antd';
+import { useState } from 'react';
+
+// Qualification observes actual lazy module evaluation across dev and production bundlers.
+window.dispatchEvent(
+  new CustomEvent('mss-thin-host-contribution-evaluated', { detail: 'avatar-self' }),
+);
+
+export default function AvatarProbe({ currentUser, open, close }: AvatarContext) {
+  const [note, setNote] = useState('');
+  const [applied, setApplied] = useState('');
+  return (
+    <section data-testid="mss-thin-host-avatar" data-open={String(open)}>
+      <h2>My custom content</h2>
+      <p data-testid="avatar-current-user">{currentUser.username}</p>
+      <label htmlFor="avatar-note">Avatar note</label>
+      <Input id="avatar-note" value={note} onChange={(event) => setNote(event.target.value)} />
+      <Space wrap>
+        <Button onClick={() => setApplied(note)}>Apply note</Button>
+        <Button onClick={close}>Close custom panel</Button>
+      </Space>
+      <output data-testid="avatar-applied-note" aria-live="polite">
+        {applied}
+      </output>
+    </section>
+  );
+}
+''',
+    'web/src/business/AvatarPermissionProbe.tsx': r'''import type { AvatarContext } from '@mss-boot-io/admin-web/runtime';
+
+// Qualification observes actual lazy module evaluation across dev and production bundlers.
+window.dispatchEvent(
+  new CustomEvent('mss-thin-host-contribution-evaluated', { detail: 'avatar-permission' }),
+);
+
+export default function AvatarPermissionProbe({ currentUser }: AvatarContext) {
+  return (
+    <p data-testid="mss-thin-host-avatar-permission">
+      Permission-scoped content for {currentUser.username}
+    </p>
+  );
+}
+''',
+    'web/src/business/layout.ts': r'''import { defineLayoutContributions } from '@mss-boot-io/admin-web/runtime';
+import { lazy } from 'react';
+
+const HeaderProbe = lazy(() =>
+  import(/* webpackChunkName: "mss-thin-host-layout-self" */ './LayoutProbe').then((module) => ({
+    default: module.HeaderProbe,
+  })),
+);
+const FooterProbe = lazy(() =>
+  import(/* webpackChunkName: "mss-thin-host-layout-self" */ './LayoutProbe').then((module) => ({
+    default: module.FooterProbe,
+  })),
+);
+const LayoutPermissionProbe = lazy(
+  () => import(/* webpackChunkName: "mss-thin-host-layout-permission" */ './LayoutPermissionProbe'),
+);
+
+export default defineLayoutContributions([
+  { id: 'compatibility-layout-header', position: 'header', component: HeaderProbe },
+  { id: 'compatibility-layout-footer', position: 'footer', component: FooterProbe },
+  {
+    id: 'compatibility-layout-permission',
+    position: 'header',
+    permission: '/compatibility-probe',
+    component: LayoutPermissionProbe,
+  },
+]);
+''',
+    'web/src/business/LayoutProbe.tsx': r'''import type { LayoutContext } from '@mss-boot-io/admin-web/runtime';
+
+// Qualification observes actual lazy module evaluation across dev and production bundlers.
+window.dispatchEvent(
+  new CustomEvent('mss-thin-host-contribution-evaluated', { detail: 'layout-self' }),
+);
+
+function LayoutProbe({
+  currentUser,
+  compact,
+  position,
+}: LayoutContext & { position: 'header' | 'footer' }) {
+  return (
+    <span
+      data-testid={`mss-thin-host-layout-${position}`}
+      data-current-user={currentUser.username}
+      data-compact={String(compact)}
+      title={`Host ${position} content for ${currentUser.username}`}
+    >
+      {position === 'header' ? 'Host' : 'Host footer'}
+    </span>
+  );
+}
+
+export function HeaderProbe(context: LayoutContext) {
+  return <LayoutProbe {...context} position="header" />;
+}
+
+export function FooterProbe(context: LayoutContext) {
+  return <LayoutProbe {...context} position="footer" />;
+}
+''',
+    'web/src/business/LayoutPermissionProbe.tsx': r'''import type { LayoutContext } from '@mss-boot-io/admin-web/runtime';
+
+// Qualification observes actual lazy module evaluation across dev and production bundlers.
+window.dispatchEvent(
+  new CustomEvent('mss-thin-host-contribution-evaluated', { detail: 'layout-permission' }),
+);
+
+export default function LayoutPermissionProbe({ currentUser }: LayoutContext) {
+  return (
+    <span
+      data-testid="mss-thin-host-layout-permission"
+      title={`Permission-scoped content for ${currentUser.username}`}
+    >
+      Extra
+    </span>
+  );
+}
+''',
     'web/src/business/CompatibilityProbe.tsx': r'''export default function CompatibilityProbePage() {
   return (
     <section data-testid="mss-thin-host-handwritten-extension">
@@ -1178,9 +1319,11 @@ handwritten_seam_paths=(
   web/src/business/route-registrations.ts
 )
 workplace_owned_paths=(web/src/business/workplace.ts web/src/business/WorkplaceProbe.tsx)
+avatar_owned_paths=(web/src/business/avatar.ts web/src/business/AvatarProbe.tsx web/src/business/AvatarPermissionProbe.tsx)
+layout_owned_paths=(web/src/business/layout.ts web/src/business/LayoutProbe.tsx web/src/business/LayoutPermissionProbe.tsx)
 
 handwritten_seam_digests() {
-  python3 - "${host_root}" "${handwritten_seam_paths[@]}" "${workplace_owned_paths[@]}" <<'PY'
+  python3 - "${host_root}" "${handwritten_seam_paths[@]}" "${workplace_owned_paths[@]}" "${avatar_owned_paths[@]}" "${layout_owned_paths[@]}" <<'PY'
 import hashlib
 import json
 import sys
@@ -1224,11 +1367,11 @@ assert_upgrade_preserves_handwritten_seams() {
   done
   # New business files are not managed template changes. They must remain in the
   # explicit preservation inventory, with no upgrade action targeting them.
-  for relative in "${workplace_owned_paths[@]}"; do
+  for relative in "${workplace_owned_paths[@]}" "${avatar_owned_paths[@]}" "${layout_owned_paths[@]}"; do
     jq -e --arg path "${relative}" \
       '([.changes[] | select(.path == $path)] | length) == 0 and (.preservedFiles | index($path)) != null' \
       "${plan_path}" >/dev/null || {
-      echo "${phase} Thin Host upgrade targeted workplace-owned content" >&2
+      echo "${phase} Thin Host upgrade targeted business-owned contribution content: ${relative}" >&2
       exit 1
     }
   done
@@ -1637,12 +1780,12 @@ PY
 
   run_pnpm run test
   run_pnpm run build
-  grep -R -F -q -- \
-    'mss-thin-host-handwritten-extension' \
-    "${web_root}/dist" || {
-    echo "Handwritten Thin Host page marker is missing from the production build" >&2
-    exit 1
-  }
+  for marker in mss-thin-host-handwritten-extension mss-thin-host-avatar mss-thin-host-avatar-permission mss-thin-host-layout- mss-thin-host-layout-permission; do
+    grep -R -F -q -- "${marker}" "${web_root}/dist" || {
+      echo "Handwritten Thin Host marker is missing from the production build: ${marker}" >&2
+      exit 1
+    }
+  done
   run_pnpm list --json --depth Infinity \
     > "${artifact_dir}/pnpm-tree.raw.json"
 )
@@ -2092,6 +2235,23 @@ jq -n \
       productionBundleMarker: true,
       routeRegistrationLoaded: true
     },
+    avatar: {
+      registration: "web/src/business/avatar.ts",
+      source: "installed-admin-web-runtime-import",
+      selfPermission: null,
+      optionalPermission: "/compatibility-probe",
+      components: ["web/src/business/AvatarProbe.tsx", "web/src/business/AvatarPermissionProbe.tsx"],
+      lazy: true
+    },
+    layout: {
+      registration: "web/src/business/layout.ts",
+      source: "installed-admin-web-runtime-import",
+      positions: ["header", "footer"],
+      selfPermission: null,
+      optionalPermission: "/compatibility-probe",
+      components: ["web/src/business/LayoutProbe.tsx", "web/src/business/LayoutPermissionProbe.tsx"],
+      lazy: true
+    },
     collisions: {
       businessInternal: {
         uiPath: "failed-closed",
@@ -2121,6 +2281,7 @@ set +e
   MSS_V6_EXTERNAL_BACKEND=1 \
   MSS_V6_EXTERNAL_SERVER=1 \
   MSS_V6_WORKPLACE_PROBE=1 \
+  MSS_V6_AVATAR_PROBE=1 \
   MSS_V6_BASE_URL="${web_origin}" \
   MSS_E2E_API_URL="${web_origin}/admin/api" \
   MSS_E2E_BACKEND_API_URL="${backend_origin}/admin/api" \
@@ -2130,6 +2291,7 @@ set +e
       e2e/generated/supplier.spec.ts \
       e2e/permission.spec.ts \
       e2e/parity.spec.ts \
+      e2e/avatar.spec.ts \
       --project=chromium-desktop \
       --output="${artifact_dir}/playwright-results" \
       --reporter=json
@@ -2159,6 +2321,7 @@ required_files = {
     'generated/supplier.spec.ts',
     'permission.spec.ts',
     'parity.spec.ts',
+    'avatar.spec.ts',
 }
 required_titles = {
     'uses the HttpOnly session for create, detail, edit, export, and delete',
@@ -2167,6 +2330,8 @@ required_titles = {
     '@parity OAuth login preserves an attempt-bound safe deep link',
     '@permission anonymous direct navigation requires a server session',
     '@permission restricted user cannot access Supplier or online-session menu, route, and API',
+    '@custom-content desktop en-US light preserves avatar and layout content with core actions',
+    '@custom-content narrow zh-CN dark preserves avatar and layout content with core actions',
 }
 files = set()
 tests = []

@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { lazy, memo } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentUser } from '../auth/types';
-import { defineWorkplaceContributions } from './contract';
+import { defineWorkplaceContributions, type WorkplaceContribution } from './contract';
 import { WorkplaceContributions } from './WorkplaceContributions';
 
 const session = vi.hoisted(() => ({ user: undefined as CurrentUser | undefined }));
@@ -52,6 +52,11 @@ describe('workplace business contributions', () => {
     const entry = { id: 'example', permission: 'example:read', component: () => null };
     expect(() => defineWorkplaceContributions([entry, entry])).toThrow();
     expect(() => defineWorkplaceContributions([{ ...entry, permission: '' }])).toThrow();
+    expect(() =>
+      defineWorkplaceContributions([
+        { id: entry.id, component: entry.component } as unknown as WorkplaceContribution,
+      ]),
+    ).toThrow();
     expect(() =>
       defineWorkplaceContributions([{ ...entry, component: {} as typeof entry.component }]),
     ).toThrow();

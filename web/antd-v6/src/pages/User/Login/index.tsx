@@ -109,7 +109,8 @@ export default function LoginPage() {
             const currentUser = await fetchCurrentUser();
             if (!currentUser) throw new Error('Session identity was not established');
             rotateThemeAuthSession(currentUser.id);
-            await message.success(intl.formatMessage({ id: 'pages.login.success' }));
+            // Message thenables settle on dismissal, which must not delay navigation.
+            void message.success(intl.formatMessage({ id: 'pages.login.success' }));
             const params = new URLSearchParams(history.location.search);
             window.location.replace(resolveSafeRedirect(params.get('redirect')));
             return true;

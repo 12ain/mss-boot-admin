@@ -8,6 +8,8 @@ const packageSourceRoot = resolve(packageRoot, 'src');
 const packageManifest = require('../package.json');
 const emptyRegistrations = resolve(__dirname, 'empty-route-registrations.ts');
 const emptyWorkplace = resolve(__dirname, 'empty-workplace.ts');
+const emptyAvatar = resolve(__dirname, 'empty-avatar.ts');
+const emptyLayout = resolve(__dirname, 'empty-layout.ts');
 const environment = process.env.UMI_ENV || 'dev';
 const browserQualification = process.env.MSS_V6_E2E === '1';
 
@@ -63,6 +65,18 @@ function validateBusinessAdminOptions(options) {
   ) {
     throw new TypeError('workplaceContributions must name a compile-time module.');
   }
+  if (
+    options.avatarContributions !== undefined &&
+    (typeof options.avatarContributions !== 'string' || !options.avatarContributions.trim())
+  ) {
+    throw new TypeError('avatarContributions must name a compile-time module.');
+  }
+  if (
+    options.layoutContributions !== undefined &&
+    (typeof options.layoutContributions !== 'string' || !options.layoutContributions.trim())
+  ) {
+    throw new TypeError('layoutContributions must name a compile-time module.');
+  }
 }
 
 function defineBusinessAdmin(options = {}) {
@@ -86,6 +100,18 @@ function defineBusinessAdmin(options = {}) {
     : existsSync(ownedWorkplace)
       ? ownedWorkplace
       : emptyWorkplace;
+  const ownedAvatar = resolve(process.cwd(), 'src/business/avatar.ts');
+  const avatarContributions = options.avatarContributions
+    ? resolve(process.cwd(), options.avatarContributions)
+    : existsSync(ownedAvatar)
+      ? ownedAvatar
+      : emptyAvatar;
+  const ownedLayout = resolve(process.cwd(), 'src/business/layout.ts');
+  const layoutContributions = options.layoutContributions
+    ? resolve(process.cwd(), options.layoutContributions)
+    : existsSync(ownedLayout)
+      ? ownedLayout
+      : emptyLayout;
   const hasPostCSSConfig = ['postcss.config.cjs', 'postcss.config.js', 'postcss.config.mjs'].some(
     (name) => existsSync(resolve(process.cwd(), name)),
   );
@@ -97,11 +123,15 @@ function defineBusinessAdmin(options = {}) {
       packageRoot,
       routeRegistrations,
       workplaceContributions,
+      avatarContributions,
+      layoutContributions,
     },
     alias: {
       '@mss-admin-core': resolve(packageRoot, 'src'),
       '@mss-admin-business/routes': routeRegistrations,
       '@mss-admin-business/workplace': workplaceContributions,
+      '@mss-admin-business/avatar': avatarContributions,
+      '@mss-admin-business/layout': layoutContributions,
       '@root': packageRoot,
       tailwindcss: tailwindStyles,
     },
