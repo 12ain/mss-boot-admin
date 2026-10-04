@@ -19,7 +19,7 @@ env:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
     environment: release-auto
     permissions:
       actions: read
@@ -111,16 +111,14 @@ jobs:
             --version "${FRAMEWORK_VERSION}" \
             --tag "${GITHUB_REF_NAME}"
 
-      - name: Require successful exact artifact preview
+      - name: Require successful main workflows for this commit
         env:
-          FRAMEWORK_VERSION: ${{ steps.version.outputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash tools/release/resolve_successful_preview.sh \
+          python3 tools/release/check_release_runs.py \
             --repository "${GITHUB_REPOSITORY}" \
-            --commit "${GITHUB_SHA}" \
-            --version "${FRAMEWORK_VERSION}" \
-            --actor lwnmengjing
+            --commit "${GITHUB_SHA}" --version "${GITHUB_REF_NAME#mss-boot/}" \
+            --phase main --timeout-seconds 3600
 
       - name: Reconcile existing public component release
         id: release-state
@@ -160,7 +158,7 @@ jobs:
             echo
             echo "Source commit: \`${GITHUB_SHA}\`"
             echo
-            echo 'Broad quality verification was completed locally on the exact clean merged-main commit. As the first irreversible component, this workflow also confirms the exact artifact-staging preview before publication.'
+            echo 'Main workflows passed for this exact merged commit; this tag workflow verifies and publishes the Framework module.'
           } >> "${notes_file}"
           echo "path=${notes_file}" >> "${GITHUB_OUTPUT}"
 

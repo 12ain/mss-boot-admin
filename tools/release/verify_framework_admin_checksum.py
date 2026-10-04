@@ -580,6 +580,12 @@ def _updated_go_sum(
             updated.append(f"{module} {key} {replacements[key]}")
         else:
             updated.append(line)
+    # A new candidate version has no recorded sums yet. Insert only the two
+    # values calculated from the committed module tree; never relabel a stable
+    # version's checksum or accept a partial/duplicated candidate pair.
+    if all(count == 0 for count in matches.values()):
+        updated.extend(f"{module} {key} {value}" for key, value in replacements.items())
+        return ("\n".join(sorted(updated)) + "\n").encode("utf-8")
     for key, count in matches.items():
         if count != 1:
             raise ChecksumContractError(

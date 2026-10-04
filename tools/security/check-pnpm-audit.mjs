@@ -390,10 +390,19 @@ export const validateAuditReport = (report) => {
       }
       findingPathCount += finding.paths.length;
     }
-    if (seenAdvisories.has(advisory.github_advisory_id)) {
+    // npm publishes separate records for a GHSA's affected release lines. Keep
+    // every record so its paths and patched range receive the full policy check.
+    const advisoryIdentity = JSON.stringify([
+      advisory.github_advisory_id,
+      advisory.module_name,
+      advisory.severity,
+      advisory.patched_versions,
+      advisory.vulnerable_versions ?? null,
+    ]);
+    if (seenAdvisories.has(advisoryIdentity)) {
       throw new Error(`pnpm audit report contains duplicate advisory: ${advisory.github_advisory_id}.`);
     }
-    seenAdvisories.add(advisory.github_advisory_id);
+    seenAdvisories.add(advisoryIdentity);
     advisoryCounts[advisory.severity] += 1;
     findingPathCounts[advisory.severity] += findingPathCount;
   }
@@ -403,7 +412,7 @@ export const validateAuditReport = (report) => {
     requireNonNegativeInteger(reported, `pnpm audit metadata.vulnerabilities.${severity}`);
     if (reported !== advisoryCounts[severity] && reported !== findingPathCounts[severity]) {
       throw new Error(
-        `pnpm audit ${severity} count mismatch: metadata=${reported}, uniqueAdvisories=${advisoryCounts[severity]}, findingPaths=${findingPathCounts[severity]}.`,
+        `pnpm audit ${severity} count mismatch: metadata=${reported}, advisoryRecords=${advisoryCounts[severity]}, findingPaths=${findingPathCounts[severity]}.`,
       );
     }
   }

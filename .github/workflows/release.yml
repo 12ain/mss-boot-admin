@@ -1,23 +1,17 @@
 name: Release
-run-name: ${{ github.event_name == 'workflow_dispatch' && format('Root Release candidate {0}', inputs.version) || format('Root Release {0}', github.ref_name) }}
+run-name: Root Release ${{ github.ref_name }}
 
 on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Release version used for artifact metadata
-        required: true
-        type: string
 
 permissions:
   actions: read
   contents: read
 
 concurrency:
-  group: ${{ github.event_name == 'push' && 'root-release-publication' || format('root-release-preview-{0}', github.ref) }}
+  group: root-release-publication
   cancel-in-progress: false
 
 env:
@@ -35,7 +29,7 @@ jobs:
       publish: ${{ steps.release.outputs.publish }}
     steps:
       - name: Require authorized release operator
-        if: ${{ github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' }}
+        if: github.ref_type == 'tag'
         env:
           RELEASE_ACTOR_LOGIN: lwnmengjing
         run: |
@@ -54,8 +48,6 @@ jobs:
 
       - name: Resolve and validate release metadata
         id: release
-        env:
-          INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
@@ -88,14 +80,6 @@ jobs:
 
           version="${GITHUB_REF_NAME}"
           publish=true
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            if [[ "${GITHUB_REF_TYPE}" != "branch" || "${GITHUB_REF_NAME}" != "main" ]]; then
-              echo 'the unique release preview must run from the main branch' >&2
-              exit 1
-            fi
-            version="${INPUT_VERSION}"
-            publish=false
-          fi
           if ! validate_release_version "${version}"; then
             echo "invalid release version: ${version}" >&2
             exit 1
@@ -128,9 +112,7 @@ jobs:
     needs: metadata
     if: needs.metadata.outputs.publish == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    outputs:
-      preview-run-id: ${{ steps.preview.outputs.run-id }}
+    timeout-minutes: 75
     permissions:
       actions: read
       contents: read
@@ -153,22 +135,16 @@ jobs:
             --tag "${RELEASE_VERSION}" \
             --policy .mss/release-policy.yaml
 
-      - name: Require successful exact preview
-        id: preview
+      - name: Require successful main workflows for this commit
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-          RELEASE_ACTOR_LOGIN: lwnmengjing
         run: |
-          set -euo pipefail
-
-          preview_run_id="$(bash tools/release/resolve_successful_preview.sh \
+          python3 tools/release/check_release_runs.py \
             --repository "${GITHUB_REPOSITORY}" \
-            --commit "${RELEASE_COMMIT}" \
-            --version "${RELEASE_VERSION}" \
-            --actor "${RELEASE_ACTOR_LOGIN}")"
-          echo "run-id=${preview_run_id}" >> "${GITHUB_OUTPUT}"
+            --commit "${RELEASE_COMMIT}" --version "${RELEASE_VERSION}" \
+            --phase main --timeout-seconds 3600
 
       - name: Require exact component releases
         env:
@@ -243,22 +219,8 @@ jobs:
           web/antd-v6/${RELEASE_VERSION}
           EOF
 
-  container-preview:
-    needs: metadata
-    if: needs.metadata.outputs.publish != 'true'
-    permissions:
-      actions: read
-      contents: read
-      packages: write
-      pull-requests: read
-    uses: ./.github/workflows/container.yml
-    with:
-      version: ${{ needs.metadata.outputs.version }}
-      release_preview: true
-
   backend-build:
-    needs: metadata
-    if: needs.metadata.outputs.publish != 'true'
+    needs: [metadata, release-evidence]
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -342,279 +304,11 @@ jobs:
           path: mss-boot-admin-${{ matrix.os }}-${{ matrix.arch }}
           if-no-files-found: error
 
-  frontend-build:
-    needs: metadata
-    if: needs.metadata.outputs.publish != 'true'
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: web/antd-v6
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 10.34.5
-
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
-
-      - name: Install frozen V6 dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
-
-      - name: Build same-origin primary V6 frontend
-        run: pnpm run build:release
-
-      - name: Embed and verify primary V6 release identity
-        env:
-          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-          RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
-        run: |
-          jq -n \
-            --arg application 'mss-boot-admin-antd-v6' \
-            --arg version "${RELEASE_VERSION}" \
-            --arg commit "${RELEASE_COMMIT}" \
-            '{application: $application, version: $version, commit: $commit}' > dist/release.json
-          jq -e \
-            --arg version "${RELEASE_VERSION}" \
-            --arg commit "${RELEASE_COMMIT}" \
-            '.application == "mss-boot-admin-antd-v6" and .version == $version and .commit == $commit' \
-            dist/release.json >/dev/null
-
-      - name: Smoke-test primary V6 delivery
-        run: pnpm run delivery:smoke
-
-      - name: Package and verify portable primary V6 artifact
-        env:
-          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-          RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
-        run: |
-          set -euo pipefail
-          python3 ../../tools/release/check_portable_paths.py dist
-          {
-            echo 'application=mss-boot-admin-antd-v6'
-            echo "version=${RELEASE_VERSION}"
-            echo "commit=${RELEASE_COMMIT}"
-          } > FRONTEND-V6-BUILD-INFO
-          source_epoch="$(git show -s --format=%ct "${RELEASE_COMMIT}")"
-          tar \
-            --sort=name \
-            --mtime="@${source_epoch}" \
-            --owner=0 \
-            --group=0 \
-            --numeric-owner \
-            --create \
-            --gzip \
-            --file dist-v6.tar.gz \
-            dist
-          sha256sum dist-v6.tar.gz FRONTEND-V6-BUILD-INFO > SHA256SUMS.frontend-v6
-          sha256sum --check SHA256SUMS.frontend-v6
-          python3 ../../tools/release/check_portable_paths.py \
-            dist-v6.tar.gz \
-            FRONTEND-V6-BUILD-INFO \
-            SHA256SUMS.frontend-v6
-
-      - name: Pack exact Admin Web package and release evidence
-        env:
-          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-          RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
-        run: |
-          set -euo pipefail
-          candidate_root="$(mktemp -d)"
-          trap 'rm -rf "${candidate_root}"' EXIT
-          package_dir="${GITHUB_WORKSPACE}/web/antd-v6/admin-web-release-package"
-          mkdir -p "${candidate_root}/source" "${package_dir}"
-          git -C ../.. -c core.autocrlf=false archive \
-            --format=tar \
-            "${RELEASE_COMMIT}:web/antd-v6" \
-            | tar -xf - -C "${candidate_root}/source"
-          python3 - \
-            "${candidate_root}/source/package.json" \
-            "${RELEASE_VERSION#v}" \
-            "${RELEASE_COMMIT}" <<'PY'
-          import json
-          from pathlib import Path
-          import sys
-
-          path = Path(sys.argv[1]).resolve()
-          manifest = json.loads(path.read_text(encoding="utf-8"))
-          if manifest.get("name") != "@mss-boot-io/admin-web" or manifest.get("private") is True:
-              raise SystemExit("Admin Web candidate source has an unexpected identity")
-          manifest["version"] = sys.argv[2]
-          manifest["gitHead"] = sys.argv[3]
-          path.write_text(
-              json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-              encoding="utf-8",
-          )
-          PY
-          (
-            cd "${candidate_root}/source"
-            pnpm pack --pack-destination "${package_dir}" >/dev/null
-          )
-          mapfile -t candidate_tarballs < <(
-            find "${package_dir}" -maxdepth 1 -type f -name '*.tgz' -print
-          )
-          [[ ${#candidate_tarballs[@]} -eq 1 ]]
-          tarball="${candidate_tarballs[0]}"
-
-          pnpm list --prod --json --depth Infinity > "${package_dir}/pnpm-tree.json"
-          created="$(date -u -d "$(git show -s --format=%cI "${RELEASE_COMMIT}")" '+%Y-%m-%dT%H:%M:%SZ')"
-          python3 ../../tools/release/verify_admin_web_package.py \
-            --tarball "${tarball}" \
-            --expected-name '@mss-boot-io/admin-web' \
-            --expected-version "${RELEASE_VERSION#v}" \
-            --source-repository "${GITHUB_REPOSITORY}" \
-            --source-commit "${RELEASE_COMMIT}" \
-            --output "${package_dir}/admin-web-package.json"
-          python3 ../../tools/release/generate_admin_web_sbom.py \
-            --dependency-tree "${package_dir}/pnpm-tree.json" \
-            --package-evidence "${package_dir}/admin-web-package.json" \
-            --source-repository "${GITHUB_REPOSITORY}" \
-            --source-commit "${RELEASE_COMMIT}" \
-            --created "${created}" \
-            --output "${package_dir}/admin-web.spdx.json"
-          rm -f "${package_dir}/pnpm-tree.json"
-          (
-            cd "${package_dir}"
-            sha256sum -- *.tgz admin-web-package.json admin-web.spdx.json \
-              > SHA256SUMS.admin-web
-            sha256sum --check SHA256SUMS.admin-web
-          )
-          python3 ../../tools/release/check_portable_paths.py \
-            "${tarball}" \
-            "${package_dir}/admin-web-package.json" \
-            "${package_dir}/admin-web.spdx.json" \
-            "${package_dir}/SHA256SUMS.admin-web"
-
-      - name: Set up V6 multi-platform emulation
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
-
-      - name: Set up V6 image builder
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-
-      - name: Qualify the exact V6 multi-platform release image
-        id: image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
-        with:
-          context: web/antd-v6
-          file: web/antd-v6/Dockerfile
-          push: false
-          outputs: type=oci,dest=${{ runner.temp }}/frontend-v6-image.oci.tar
-          labels: |
-            org.opencontainers.image.title=mss-boot-admin-antd-v6
-            org.opencontainers.image.description=Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts.
-            org.opencontainers.image.version=${{ needs.metadata.outputs.version }}
-            org.opencontainers.image.revision=${{ needs.metadata.outputs.commit }}
-          platforms: linux/amd64,linux/arm64
-          provenance: mode=max
-          sbom: true
-          cache-from: type=gha,scope=frontend-v6-image
-          cache-to: type=gha,mode=max,scope=frontend-v6-image
-
-      - name: Verify and stage the exact V6 OCI image
-        env:
-          BUILD_DIGEST: ${{ steps.image.outputs.digest }}
-          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-          RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
-        run: |
-          set -euo pipefail
-          source_archive="${RUNNER_TEMP}/frontend-v6-image.oci.tar"
-          layout_index="${RUNNER_TEMP}/frontend-v6-image.index.json"
-          source_manifest="${RUNNER_TEMP}/frontend-v6-image.manifest.json"
-          test -s "${source_archive}"
-          command -v skopeo >/dev/null
-          tar -xOf "${source_archive}" index.json > "${layout_index}"
-          archive_digest="$(
-            jq -er '
-              if (.manifests | length) == 1 then
-                .manifests[0].digest
-              else
-                error("OCI layout must expose exactly one top-level image")
-              end
-            ' "${layout_index}"
-          )"
-          manifest_hash="${archive_digest#sha256:}"
-          [[ "${manifest_hash}" =~ ^[0-9a-f]{64}$ ]]
-          tar -xOf \
-            "${source_archive}" \
-            "blobs/sha256/${manifest_hash}" \
-            > "${source_manifest}"
-          test "sha256:$(sha256sum "${source_manifest}" | awk '{print $1}')" = "${archive_digest}"
-          [[ "${BUILD_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          test "${archive_digest}" = "${BUILD_DIGEST}"
-          jq -e '
-            (.mediaType == "application/vnd.oci.image.index.v1+json" or
-             .mediaType == "application/vnd.docker.distribution.manifest.list.v2+json") and
-            ([.manifests[] | select(
-              .platform.os == "linux" and .platform.architecture == "amd64"
-            )] | length) == 1 and
-            ([.manifests[] | select(
-              .platform.os == "linux" and .platform.architecture == "arm64"
-            )] | length) == 1
-          ' "${source_manifest}" >/dev/null
-
-          for architecture in amd64 arm64; do
-            config="$(
-              skopeo \
-                --override-os linux \
-                --override-arch "${architecture}" \
-                inspect --config "oci-archive:${source_archive}"
-            )"
-            jq -e \
-              --arg version "${RELEASE_VERSION}" \
-              --arg commit "${RELEASE_COMMIT}" \
-              '.config.Labels["org.opencontainers.image.title"] == "mss-boot-admin-antd-v6" and
-               .config.Labels["org.opencontainers.image.description"] == "Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts." and
-               .config.Labels["org.opencontainers.image.version"] == $version and
-               .config.Labels["org.opencontainers.image.revision"] == $commit' \
-              <<< "${config}" >/dev/null
-          done
-
-          install -m 0644 "${source_archive}" frontend-v6-image.oci.tar
-          {
-            echo 'application=mss-boot-admin-antd-v6'
-            echo "version=${RELEASE_VERSION}"
-            echo "commit=${RELEASE_COMMIT}"
-            echo "digest=${archive_digest}"
-          } > FRONTEND-V6-IMAGE-INFO
-          sha256sum \
-            frontend-v6-image.oci.tar \
-            FRONTEND-V6-IMAGE-INFO \
-            > SHA256SUMS.frontend-v6-image
-          sha256sum --check SHA256SUMS.frontend-v6-image
-
-      - name: Upload primary V6 artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: frontend-v6-dist
-          path: |
-            web/antd-v6/dist-v6.tar.gz
-            web/antd-v6/FRONTEND-V6-BUILD-INFO
-            web/antd-v6/SHA256SUMS.frontend-v6
-            web/antd-v6/admin-web-release-package/*.tgz
-            web/antd-v6/admin-web-release-package/admin-web-package.json
-            web/antd-v6/admin-web-release-package/admin-web.spdx.json
-            web/antd-v6/admin-web-release-package/SHA256SUMS.admin-web
-            web/antd-v6/frontend-v6-image.oci.tar
-            web/antd-v6/FRONTEND-V6-IMAGE-INFO
-            web/antd-v6/SHA256SUMS.frontend-v6-image
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
-
   assemble:
     needs:
       - metadata
-      - container-preview
       - backend-build
-      - frontend-build
-    if: needs.metadata.outputs.publish != 'true'
+      - release-evidence
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -629,6 +323,26 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
 
+      - name: Reuse the published frontend release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p frontend-v6-dist/admin-web-release-package
+          gh release download "web/antd-v6/${RELEASE_VERSION}" \
+            --dir frontend-v6-dist \
+            --pattern dist-v6.tar.gz \
+            --pattern FRONTEND-V6-BUILD-INFO \
+            --pattern SHA256SUMS.frontend-v6
+          gh release download "web/antd-v6/${RELEASE_VERSION}" \
+            --dir frontend-v6-dist/admin-web-release-package \
+            --pattern '*.tgz' --pattern admin-web-package.json \
+            --pattern admin-web.spdx.json --pattern SHA256SUMS.admin-web
+          (cd frontend-v6-dist && sha256sum --strict --check SHA256SUMS.frontend-v6)
+          (cd frontend-v6-dist/admin-web-release-package && sha256sum --strict --check SHA256SUMS.admin-web)
+
       - name: Assemble release packages
         env:
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
@@ -640,47 +354,6 @@ jobs:
           source_date_epoch="$(git show -s --format=%ct "${RELEASE_COMMIT}")"
           [[ "${release_timestamp}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([+-][0-9]{2}:[0-9]{2}|Z)$ ]]
           [[ "${source_date_epoch}" =~ ^[0-9]+$ ]]
-
-          root_image_dir="root-image-preview-${RELEASE_VERSION}"
-          test -d "${root_image_dir}"
-          (
-            cd "${root_image_dir}"
-            sha256sum --check SHA256SUMS.root-image
-          )
-          root_image_archive="${root_image_dir}/root-image.oci.tar"
-          root_image_index="$(mktemp)"
-          root_image_manifest="$(mktemp)"
-          test -s "${root_image_archive}"
-          tar -xOf "${root_image_archive}" index.json > "${root_image_index}"
-          root_image_digest="$(
-            jq -er '
-              if (.manifests | length) == 1 then
-                .manifests[0].digest
-              else
-                error("Root OCI layout must expose exactly one top-level image")
-              end
-            ' "${root_image_index}"
-          )"
-          [[ "${root_image_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          tar -xOf \
-            "${root_image_archive}" \
-            "blobs/sha256/${root_image_digest#sha256:}" \
-            > "${root_image_manifest}"
-          test "sha256:$(sha256sum "${root_image_manifest}" | awk '{print $1}')" = "${root_image_digest}"
-          jq -e '
-            (.mediaType == "application/vnd.oci.image.index.v1+json" or
-             .mediaType == "application/vnd.docker.distribution.manifest.list.v2+json") and
-            ([.manifests[] | select(
-              .platform.os == "linux" and .platform.architecture == "amd64"
-            )] | length) == 1 and
-            ([.manifests[] | select(
-              .platform.os == "linux" and .platform.architecture == "arm64"
-            )] | length) == 1
-          ' "${root_image_manifest}" >/dev/null
-          grep -Fx 'application=mss-boot-admin' "${root_image_dir}/ROOT-IMAGE-INFO.txt" >/dev/null
-          grep -Fx "version=${RELEASE_VERSION}" "${root_image_dir}/ROOT-IMAGE-INFO.txt" >/dev/null
-          grep -Fx "commit=${RELEASE_COMMIT}" "${root_image_dir}/ROOT-IMAGE-INFO.txt" >/dev/null
-          grep -Fx "digest=${root_image_digest}" "${root_image_dir}/ROOT-IMAGE-INFO.txt" >/dev/null
 
           test -d frontend-v6-dist
           (
@@ -981,6 +654,7 @@ jobs:
     needs:
       - metadata
       - release-evidence
+      - assemble
     if: needs.metadata.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -999,14 +673,11 @@ jobs:
             exit 1
           fi
 
-      - name: Download exact preview packages
+      - name: Download assembled packages from this tag run
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: release-packages-${{ needs.metadata.outputs.version }}
           path: .
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ needs.release-evidence.outputs.preview-run-id }}
 
       - name: Prepare deterministic root release notes
         id: release-notes
@@ -1022,7 +693,7 @@ jobs:
           {
             echo "# mss-boot-admin ${RELEASE_VERSION}"
             echo
-            echo "This release was assembled and qualified by the exact successful Root preview for commit \`${RELEASE_COMMIT}\`."
+            echo "This release was assembled and qualified by this successful Root tag workflow for commit \`${RELEASE_COMMIT}\`."
             echo
             echo '## Runtime image'
             echo
@@ -1115,7 +786,7 @@ jobs:
             local remote_size
             actual_names="$(jq -c '[.assets[].name] | sort' <<< "${release_json}")"
             if [[ "${actual_names}" != "${expected_names}" ]]; then
-              echo "release assets do not match the exact preview package set" >&2
+              echo "release assets do not match the exact tag package set" >&2
               return 1
             fi
             for asset in "${assets[@]}"; do
@@ -1135,7 +806,7 @@ jobs:
                 '.isDraft == false and .isPrerelease == $prerelease' \
                 <<< "${release_json}" >/dev/null
               verify_release_assets "${release_json}"
-              echo "release ${RELEASE_VERSION} is already public with the exact preview assets"
+              echo "release ${RELEASE_VERSION} is already public with the exact tag assets"
               exit 0
             fi
             gh release edit "${RELEASE_VERSION}" \

@@ -1,5 +1,5 @@
 name: Container Image
-run-name: ${{ inputs.release_preview == true && format('Root Image candidate {0}', inputs.version) || format('Container Image {0}', github.ref_name) }}
+run-name: Container Image ${{ github.ref_name }}
 
 on:
   push:
@@ -18,24 +18,14 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
       - '.github/workflows/container.yml'
-  workflow_call:
-    inputs:
-      version:
-        description: Exact candidate version supplied by the Root preview
-        required: true
-        type: string
-      release_preview:
-        description: Build and upload the exact multi-platform Root image candidate
-        required: true
-        type: boolean
 
 permissions:
   actions: read
   contents: read
 
 concurrency:
-  group: container-${{ inputs.release_preview == true && format('preview-{0}-{1}', inputs.version, github.sha) || github.ref }}
-  cancel-in-progress: ${{ inputs.release_preview != true && !startsWith(github.ref, 'refs/tags/') }}
+  group: container-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   REGISTRY: ghcr.io
@@ -46,15 +36,18 @@ jobs:
   build:
     name: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 120
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
     outputs:
       version: ${{ steps.build-info.outputs.version }}
       publish: ${{ steps.build-info.outputs.publish }}
       stable: ${{ steps.build-info.outputs.stable }}
-      preview-run-id: ${{ steps.preview.outputs.run-id }}
     steps:
       - name: Require authorized release operator
-        if: ${{ inputs.release_preview == true || github.ref_type == 'tag' }}
+        if: github.ref_type == 'tag'
         env:
           RELEASE_ACTOR_LOGIN: lwnmengjing
         run: |
@@ -67,8 +60,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Require merged source and successful main workflows
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/release/verify_release_source.py \
+            --repository "${GITHUB_REPOSITORY}" --commit "${GITHUB_SHA}" \
+            --tag "${GITHUB_REF_NAME}" --policy .mss/release-policy.yaml
+          python3 tools/release/check_release_runs.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${GITHUB_SHA}" --version "${GITHUB_REF_NAME}" \
+            --phase main --timeout-seconds 3600
+
       - name: Setup Go
-        if: github.ref_type != 'tag'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: admin/go.mod
@@ -80,14 +85,10 @@ jobs:
             mss-boot/go.sum
 
       - name: Vendor workspace for Docker context
-        if: github.ref_type != 'tag'
         run: go work vendor
 
       - name: Resolve build metadata
         id: build-info
-        env:
-          INPUT_RELEASE_PREVIEW: ${{ inputs.release_preview }}
-          INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
@@ -120,24 +121,7 @@ jobs:
 
           version="sha-${GITHUB_SHA:0:12}"
           publish=false
-          preview=false
-          release_preview="${INPUT_RELEASE_PREVIEW:-false}"
-          case "${release_preview}" in
-            true|false) ;;
-            *) echo 'release_preview must be true or false' >&2; exit 1 ;;
-          esac
-          if [[ "${release_preview}" != "true" && -n "${INPUT_VERSION}" ]]; then
-            echo 'version is only valid for an explicit release preview' >&2
-            exit 1
-          fi
-          if [[ "${release_preview}" == "true" ]]; then
-            if [[ -z "${INPUT_VERSION}" ]]; then
-              echo 'release preview requires one explicit version' >&2
-              exit 1
-            fi
-            version="${INPUT_VERSION}"
-            preview=true
-          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             version="${GITHUB_REF_NAME}"
             publish=true
           fi
@@ -147,10 +131,6 @@ jobs:
           fi
           if [[ "${publish}" != "true" && "${publish}" != "false" ]]; then
             echo "publish must be true or false" >&2
-            exit 1
-          fi
-          if [[ "${preview}" != "true" && "${preview}" != "false" ]]; then
-            echo "preview must be true or false" >&2
             exit 1
           fi
           if [[ "${version}" == v* ]] && ! validate_release_version "${version}"; then
@@ -171,36 +151,18 @@ jobs:
           {
             echo "version=${version}"
             echo "publish=${publish}"
-            echo "preview=${preview}"
             echo "stable=${stable}"
             echo "local-tag=${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Require successful exact preview
-        id: preview
-        if: steps.build-info.outputs.publish == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ steps.build-info.outputs.version }}
-        run: |
-          set -euo pipefail
-          preview_run_id="$(bash tools/release/resolve_successful_preview.sh \
-            --repository "${GITHUB_REPOSITORY}" \
-            --commit "${GITHUB_SHA}" \
-            --version "${RELEASE_VERSION}" \
-            --actor lwnmengjing)"
-          echo "run-id=${preview_run_id}" >> "${GITHUB_OUTPUT}"
-
       - name: Set up QEMU
-        if: steps.build-info.outputs.preview == 'true'
+        if: steps.build-info.outputs.publish == 'true'
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
 
       - name: Set up Docker Buildx
-        if: github.ref_type != 'tag'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Extract Docker metadata
-        if: github.ref_type != 'tag'
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
@@ -214,7 +176,7 @@ jobs:
             type=sha,prefix=,format=long,enable=true,priority=100
 
       - name: Build candidate image
-        if: github.ref_type != 'tag' && inputs.release_preview != true
+        if: github.ref_type != 'tag'
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
@@ -239,7 +201,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=admin-image
 
       - name: Smoke-test candidate image
-        if: github.ref_type != 'tag' && inputs.release_preview != true
+        if: github.ref_type != 'tag'
         env:
           IMAGE: ${{ steps.build-info.outputs.local-tag }}
           EXPECTED_VERSION: ${{ steps.build-info.outputs.version }}
@@ -253,7 +215,7 @@ jobs:
           test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.description" }}' "${IMAGE}")" = 'Complete Go Admin backend for the mss-boot agent-native management-system distribution.'
 
       - name: Qualify the exact multi-platform release image
-        if: steps.build-info.outputs.preview == 'true'
+        if: steps.build-info.outputs.publish == 'true'
         id: release-image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
@@ -277,7 +239,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=admin-image
 
       - name: Verify and stage the exact Root OCI image
-        if: steps.build-info.outputs.preview == 'true'
+        if: steps.build-info.outputs.publish == 'true'
         env:
           BUILD_DIGEST: ${{ steps.release-image.outputs.digest }}
           RELEASE_VERSION: ${{ steps.build-info.outputs.version }}
@@ -365,8 +327,8 @@ jobs:
             "${artifact_dir}/ROOT-IMAGE-INFO.txt" \
             "${artifact_dir}/SHA256SUMS.root-image"
 
-      - name: Upload exact Root OCI preview artifact
-        if: steps.build-info.outputs.preview == 'true'
+      - name: Upload exact Root OCI artifact
+        if: steps.build-info.outputs.publish == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: root-image-preview-${{ steps.build-info.outputs.version }}
@@ -421,16 +383,13 @@ jobs:
             --tag "${RELEASE_VERSION}" \
             --policy .mss/release-policy.yaml
 
-      - name: Download exact Root OCI image from the successful preview
+      - name: Download exact Root OCI image from this tag run
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: root-image-preview-${{ needs.build.outputs.version }}
           path: ${{ runner.temp }}/root-image-preview
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ needs.build.outputs.preview-run-id }}
 
-      - name: Verify the exact Root OCI preview artifact
+      - name: Verify the exact Root OCI artifact
         env:
           RELEASE_VERSION: ${{ needs.build.outputs.version }}
         run: |
@@ -526,7 +485,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish the exact preview Root OCI image
+      - name: Publish the exact Root OCI image
         id: image
         env:
           VERSION: ${{ needs.build.outputs.version }}

@@ -1,15 +1,15 @@
 apiVersion: mss.io/v1alpha1
 kind: ReleasePolicy
 metadata:
-  name: foundation-v1-3-7-release-recovery
+  name: foundation-v1-3-8-release-preparation
 spec:
   mode: development-first
   releaseBranch: main
   requireMergedPullRequestSource: true
   currentStableVersion: v1.3.7
   currentStableCommit: 77b53d41092741eac62fa6418c0bdbf87413c7cd
-  nextPublicVersion: v1.3.7
-  distributionVersion: v1.3.7
+  nextPublicVersion: v1.3.8
+  distributionVersion: v1.3.8
   distributionComponents: "root,framework,admin,frontend"
   releaseTargetState: active
   immutableStoppedTrains:
@@ -33,8 +33,10 @@ spec:
         npm: "@mss-boot-io/admin-web@1.3.6"
   publicationWorkflowsReady: true
   docsTagMutable: true
+  # Legacy reader compatibility only; npm authorization is successful main/tag workflows.
+  # These fields never gate the current npm workflow and must remain disabled.
   stablePromotionReady: false
-  stablePromotionVersion: v1.3.7
+  stablePromotionVersion: v1.3.8
   stablePromotionCommit: disabled
   publicPrereleases: false
   rootTagTemplate: "{version}"

@@ -214,6 +214,68 @@ class ReleaseSourceGitTest(unittest.TestCase):
         evidence = self.verify(source_mode="promotion")
         self.assertEqual(evidence["number"], 474)
 
+    def test_release_accepts_exact_root_and_annotated_component_tags_after_main_advances(self):
+        tags = ("mss-boot/v1.1.0", "admin/v1.1.0", "web/antd-v6/v1.1.0")
+        for tag in tags:
+            run_git(self.work, "tag", "-a", tag, self.candidate, "-m", tag)
+            run_git(self.work, "push", "origin", "refs/tags/" + tag)
+        (self.work / "tracked.txt").write_text("unrelated main PR\n", encoding="utf-8")
+        run_git(self.work, "add", "tracked.txt")
+        run_git(self.work, "commit", "-m", "unrelated main PR")
+        run_git(self.work, "push", "origin", "main")
+        run_git(self.work, "checkout", "--detach", self.candidate)
+
+        for tag in ("v1.1.0", *tags):
+            with self.subTest(tag=tag):
+                evidence = self.verify(tag=tag)
+                self.assertEqual(evidence["mergeCommit"]["oid"], self.candidate)
+        with self.assertRaisesRegex(SOURCE.SourceError, "does not equal current"):
+            self.verify(tag=None)
+
+    def test_exact_tag_does_not_authorize_unmerged_topic_commit(self):
+        run_git(self.work, "switch", "-c", "unmerged-topic")
+        (self.work / "topic.txt").write_text("unmerged\n", encoding="utf-8")
+        run_git(self.work, "add", "topic.txt")
+        run_git(self.work, "commit", "-m", "unmerged topic")
+        topic_commit = run_git(self.work, "rev-parse", "HEAD")
+        run_git(self.work, "tag", "v1.1.1", topic_commit)
+        run_git(self.work, "push", "origin", "refs/tags/v1.1.1")
+        run_git(self.work, "switch", "main")
+        (self.work / "tracked.txt").write_text("later main PR\n", encoding="utf-8")
+        run_git(self.work, "add", "tracked.txt")
+        run_git(self.work, "commit", "-m", "later main PR")
+        run_git(self.work, "push", "origin", "main")
+        run_git(self.work, "checkout", "--detach", topic_commit)
+
+        with self.assertRaisesRegex(SOURCE.SourceError, "not contained"):
+            self.verify(commit=topic_commit, tag="v1.1.1")
+
+    def test_tagged_main_ancestor_still_requires_exact_merged_pr_and_matching_remote_tag(self):
+        run_git(self.work, "tag", "wrong", self.base_commit)
+        run_git(self.work, "push", "origin", "refs/tags/wrong")
+        (self.work / "tracked.txt").write_text("later main PR\n", encoding="utf-8")
+        run_git(self.work, "add", "tracked.txt")
+        run_git(self.work, "commit", "-m", "later main PR")
+        run_git(self.work, "push", "origin", "main")
+        run_git(self.work, "checkout", "--detach", self.candidate)
+
+        with self.assertRaisesRegex(SOURCE.SourceError, "not candidate"):
+            self.verify(tag="wrong")
+        with self.assertRaisesRegex(SOURCE.SourceError, "merge/squash"):
+            SOURCE.verify_release_source(
+                repository_root=self.work, policy_path=POLICY_PATH,
+                repository=REPOSITORY, commit=self.candidate, tag="v1.1.0",
+                pr_evidence_loader=lambda repository, commit, branch: (
+                    SOURCE.select_pr_merge_evidence(
+                        pr_payload(commit, merged=False), repository, commit, branch,
+                    )
+                ),
+            )
+
+    def test_unknown_source_mode_cannot_bypass_source_validation(self):
+        with self.assertRaisesRegex(SOURCE.SourceError, "source mode must be"):
+            self.verify(source_mode="unchecked")
+
     def test_docs_base_accepts_exact_root_release_ancestor_after_main_advances(self):
         run_git(self.work, "tag", "docs/v1.1.0", self.candidate)
         run_git(self.work, "push", "origin", "refs/tags/docs/v1.1.0")

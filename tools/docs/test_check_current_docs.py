@@ -36,6 +36,7 @@ class CurrentDocsContractTest(unittest.TestCase):
                 "spec:\n"
                 "  currentStableVersion: v1.3.2\n"
                 "  distributionVersion: v1.3.7\n"
+                "  nextPublicVersion: v1.3.7\n"
                 "  immutableStoppedTrains:\n"
                 "    - version: v1.3.5\n"
                 "    - version: v1.3.6\n"
@@ -51,17 +52,38 @@ class CurrentDocsContractTest(unittest.TestCase):
                 "    release-status: candidate\n",
                 encoding="utf-8",
             )
+            (feature.parent / "stable.yaml").write_text(
+                "metadata:\n"
+                "  labels:\n"
+                "    target-version: v1.3.2\n"
+                "    release-status: stable\n",
+                encoding="utf-8",
+            )
             state = check_current_docs.release_documentation_state(root)
+            stable_feature = feature.parent / "stable.yaml"
+            stable_feature.write_text(
+                stable_feature.read_text(encoding="utf-8").replace(
+                    "release-status: stable", "release-status: candidate"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "currentStableVersion.*stable Feature"):
+                check_current_docs.release_documentation_state(root)
 
-        self.assertEqual(state.distribution_version, "v1.3.7")
+        self.assertEqual(state.distribution_version, "v1.3.2")
         self.assertEqual(state.current_stable_version, "v1.3.2")
         self.assertEqual(
             state.immutable_stopped_versions,
             ("v1.3.5", "v1.3.6"),
         )
         self.assertTrue(state.publication_workflows_ready)
-        self.assertEqual(state.release_status, "candidate")
-        self.assertFalse(state.operational_onboarding_allowed)
+        self.assertEqual(state.release_status, "stable")
+        self.assertEqual(state.next_public_version, "v1.3.7")
+        self.assertEqual(state.next_public_status, "candidate")
+        self.assertTrue(state.operational_onboarding_allowed)
+        self.assertTrue(
+            state._replace(publication_workflows_ready=False).operational_onboarding_allowed
+        )
 
     def test_release_state_fails_closed_on_invalid_stopped_train_list(self) -> None:
         policies = (
@@ -81,12 +103,65 @@ class CurrentDocsContractTest(unittest.TestCase):
                         "spec:\n"
                         "  currentStableVersion: v1.3.2\n"
                         "  distributionVersion: v1.3.7\n"
+                        "  nextPublicVersion: v1.3.7\n"
                         f"{stopped_contract}"
                         "  publicationWorkflowsReady: false\n",
                         encoding="utf-8",
                     )
                     with self.assertRaisesRegex(ValueError, "immutableStoppedTrains"):
                         check_current_docs.release_documentation_state(root)
+
+    def test_candidate_record_preserves_stable_adoption_and_rejects_candidate_install(self) -> None:
+        state = check_current_docs.ReleaseDocumentationState(
+            distribution_version="v1.3.7",
+            current_stable_version="v1.3.7",
+            immutable_stopped_versions=("v1.3.5", "v1.3.6"),
+            publication_workflows_ready=False,
+            release_status="stable",
+            next_public_version="v1.3.8",
+            next_public_status="preparation",
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            relative = Path("docs/docs/releases/v1-3-8.md")
+            page = root / relative
+            page.parent.mkdir(parents=True)
+            page.write_text("v1.3.8 candidate; current stable is v1.3.7.\n", encoding="utf-8")
+            self.assertEqual(check_current_docs.candidate_documentation_errors(root, state), [])
+            self.assertEqual(
+                check_current_docs.forbidden_content_errors(
+                    root, "v1.3.7", [relative], next_public_version="v1.3.8"
+                ),
+                [],
+            )
+            page.write_text(
+                page.read_text(encoding="utf-8")
+                + "current stable is v1.3.8\n"
+                + "mss upgrade admin v1.3.8\n"
+                + "Install with `pnpm add @mss-boot-io/admin-web@1.3.8`.\n"
+                + "Use `go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.8`.\n"
+                + "Run `docker pull ghcr.io/mss-boot-io/mss-boot-admin:v1.3.8`.\n",
+                encoding="utf-8",
+            )
+            errors = "\n".join(check_current_docs.candidate_documentation_errors(root, state))
+            self.assertIn("current-stable claim", errors)
+            self.assertIn("unpublished v1.3.8 Admin upgrade", errors)
+            self.assertIn("unpublished official npmjs install", errors)
+            self.assertIn("unpublished v1.3.8 Go dependency", errors)
+            self.assertIn("unpublished Root image command", errors)
+
+            page.write_text("v1.3.8 candidate; current stable is v1.3.7.\n", encoding="utf-8")
+            for relative in check_current_docs.CONTRIBUTOR_PAGES:
+                contributor = root / relative
+                contributor.parent.mkdir(parents=True, exist_ok=True)
+                contributor.write_text(
+                    "current stable is v1.3.8\n"
+                    "mss upgrade admin v1.3.8\n",
+                    encoding="utf-8",
+                )
+                errors = "\n".join(check_current_docs.candidate_documentation_errors(root, state))
+                self.assertIn(f"{relative}:1:", errors)
+                self.assertIn(f"{relative}:2:", errors)
 
     def test_partial_release_rejects_version_specific_dead_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -187,6 +262,17 @@ class CurrentDocsContractTest(unittest.TestCase):
             page.write_text(
                 "v1.3.7 is not yet stable or adoptable. Candidate surfaces may "
                 "become public in stages before final policy and Docs reconciliation.\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                check_current_docs.absolute_unpublished_claim_errors(
+                    root, "v1.3.7", [relative]
+                ),
+                [],
+            )
+
+            page.write_text(
+                "状态：未发布候选版本。当前稳定、可采用版本为 v1.3.7。\n",
                 encoding="utf-8",
             )
             self.assertEqual(
@@ -829,15 +915,11 @@ class CurrentDocsContractTest(unittest.TestCase):
             valid_monorepo = (
                 "v1.3.5 is permanently stopped as an immutable partial release. "
                 "v1.3.6 is permanently stopped as an immutable partial release. "
-                "For a future unused version, run one non-publishing Root preview, "
-                "then publish the Framework, Admin, and Admin Web tags in order. "
-                "The Root tag starts only the Root Release and backend-image candidate. "
-                "GitHub Latest and npmjs `latest` remain v1.3.2. Stable promotion is a "
-                "separate reviewed policy decision. The operator may manually dispatch "
-                "`npm-release.yml` from the exact `v1.3.7` Root tag and use "
-                "npm publish --tag latest --provenance. Only then may it promote the "
-                "exact Root Release to GitHub Latest. The final current-stable "
-                "policy reconciliation follows through another PR. "
+                "main CI and the tag workflows must succeed on the same exact commit. "
+                "The Root tag automatically starts `npm-release.yml` "
+                "without a separate preview or manual stable-promotion step. "
+                "It uses npm publish --tag latest --provenance and advances "
+                "GitHub Latest only after npm identity and provenance reconcile. "
                 "Formal workflows do not repeat expensive qualification.\n"
             )
             monorepo.write_text(valid_monorepo, encoding="utf-8")

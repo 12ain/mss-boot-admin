@@ -186,7 +186,7 @@ EXACT_SECTION_CONTENT = {
         "mss-shop.md",
     },
     Path("docs/docs/guide"): {"index.md", "faq.md"},
-    Path("docs/docs/coding"): {"first-contribution.md"},
+    Path("docs/docs/coding"): {"first-contribution.md", "workflow-maintenance.md"},
     Path("docs/docs/devops"): {"security-policy-faq.md"},
     Path("docs/docs/operations"): set(),
 }
@@ -267,6 +267,10 @@ REQUIRED_ADRS = {
     "2026-08-24-governed-admin-presentation-configuration.md",
 }
 CONTRIBUTOR_PAGE = Path("docs/docs/coding/first-contribution.md")
+CONTRIBUTOR_PAGES = frozenset((
+    CONTRIBUTOR_PAGE,
+    Path("docs/docs/coding/workflow-maintenance.md"),
+))
 ARCHIVE_PREFIX = Path("docs/docs/releases/archive")
 
 MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
@@ -342,15 +346,20 @@ def unpublished_operational_commands(version: str) -> dict[str, re.Pattern[str]]
             re.IGNORECASE,
         ),
         "unpublished official npmjs install": re.compile(
-            r"(?im)^\s*(?:[$>]\s*)?(?:corepack\s+)?(?:npm|pnpm|yarn|bun)\b"
-            rf"[^\n]*@mss-boot-io/admin-web@{escaped_npm_version}\b",
+            r"(?i)(?<![A-Za-z0-9_-])(?:corepack\s+)?(?:npm|pnpm|yarn|bun)\s+"
+            rf"[^\n`]*@mss-boot-io/admin-web@{escaped_npm_version}\b",
         ),
         "unpublished Root image command": re.compile(
-            r"(?im)^\s*(?:[$>]\s*)?(?:docker|podman|nerdctl)\s+(?:pull|run)\b"
-            rf"[^\n]*ghcr\.io/mss-boot-io/mss-boot-admin:{escaped_version}\b",
+            r"(?i)(?<![A-Za-z0-9_-])(?:docker|podman|nerdctl)\s+(?:pull|run)\b"
+            rf"[^\n`]*ghcr\.io/mss-boot-io/mss-boot-admin:{escaped_version}\b",
         ),
         f"source-built {version} Root tool": re.compile(
-            r"(?im)^\s*(?:[$>]\s*)?go\s+install\b[^\n]*/cmd/mss(?:-mcp)?@"
+            r"(?i)(?<![A-Za-z0-9_-])go\s+install\b[^\n`]*/cmd/mss(?:-mcp)?@"
+            rf"{escaped_version}\b",
+        ),
+        f"unpublished {version} Go dependency": re.compile(
+            r"(?i)(?<![A-Za-z0-9_-])go\s+(?:get|install|mod\s+edit)\b"
+            r"[^\n`]*github\.com/mss-boot-io/mss-boot-admin(?:/[^\s`@]+)?@"
             rf"{escaped_version}\b",
         ),
     }
@@ -439,10 +448,14 @@ class ReleaseDocumentationState(NamedTuple):
     immutable_stopped_versions: tuple[str, ...]
     publication_workflows_ready: bool
     release_status: str
+    next_public_version: str | None = None
+    next_public_status: str | None = None
 
     @property
     def operational_onboarding_allowed(self) -> bool:
-        return self.publication_workflows_ready and self.release_status == "stable"
+        # A new release's preparation switch cannot revoke published stable
+        # packages or hide their existing installation instructions.
+        return self.release_status == "stable"
 
 
 def release_documentation_state(root: Path) -> ReleaseDocumentationState:
@@ -470,6 +483,9 @@ def release_documentation_state(root: Path) -> ReleaseDocumentationState:
     stable = required_value(
         "currentStableVersion", r"v\d+\.\d+\.\d+"
     )
+    next_public = required_value("nextPublicVersion", r"v\d+\.\d+\.\d+")
+    if distribution != next_public:
+        raise ValueError("distributionVersion must match nextPublicVersion")
 
     stopped_headers = list(
         re.finditer(
@@ -531,7 +547,9 @@ def release_documentation_state(root: Path) -> ReleaseDocumentationState:
         "publicationWorkflowsReady", r"true|false"
     )
 
-    matching_features: list[tuple[Path, str]] = []
+    matching_features: dict[str, list[tuple[Path, str]]] = {
+        version: [] for version in (stable, next_public)
+    }
     feature_root = root / ".mss/features"
     for feature in sorted(feature_root.glob("*.yaml")):
         try:
@@ -543,7 +561,7 @@ def release_documentation_state(root: Path) -> ReleaseDocumentationState:
             feature_text,
             re.MULTILINE,
         )
-        if not target or target.group(1) != distribution:
+        if not target or target.group(1) not in matching_features:
             continue
         status = re.search(
             r"^\s*release-status:\s*['\"]?([a-z0-9-]+)['\"]?\s*$",
@@ -554,21 +572,26 @@ def release_documentation_state(root: Path) -> ReleaseDocumentationState:
             raise ValueError(
                 f"{feature.relative_to(root)} must declare metadata.labels.release-status"
             )
-        matching_features.append((feature, status.group(1)))
+        matching_features[target.group(1)].append((feature, status.group(1)))
 
-    if len(matching_features) != 1:
-        names = ", ".join(str(path.relative_to(root)) for path, _ in matching_features)
-        raise ValueError(
-            f"expected exactly one Feature for {distribution}; found "
-            f"{len(matching_features)} ({names})"
-        )
+    for version, features in matching_features.items():
+        if len(features) != 1:
+            names = ", ".join(str(path.relative_to(root)) for path, _ in features)
+            raise ValueError(
+                f"expected exactly one Feature for {version}; found "
+                f"{len(features)} ({names})"
+            )
+    if matching_features[stable][0][1] != "stable":
+        raise ValueError(f"currentStableVersion {stable} must have a stable Feature")
 
     return ReleaseDocumentationState(
-        distribution_version=distribution,
+        distribution_version=stable,
         current_stable_version=stable,
         immutable_stopped_versions=tuple(stopped_versions),
         publication_workflows_ready=publication_ready_text == "true",
-        release_status=matching_features[0][1],
+        release_status=matching_features[stable][0][1],
+        next_public_version=next_public if next_public != stable else None,
+        next_public_status=matching_features[next_public][0][1] if next_public != stable else None,
     )
 
 
@@ -591,7 +614,7 @@ def active_markdown_paths(root: Path) -> list[Path]:
     if docs_root.is_dir():
         for absolute in sorted(docs_root.rglob("*.md")):
             relative = absolute.relative_to(root)
-            if relative == CONTRIBUTOR_PAGE:
+            if relative in CONTRIBUTOR_PAGES:
                 continue
             if ARCHIVE_PREFIX in relative.parents:
                 continue
@@ -654,6 +677,7 @@ def forbidden_content_errors(
     *,
     current_stable_version: str | None = None,
     immutable_stopped_versions: tuple[str, ...] = (),
+    next_public_version: str | None = None,
 ) -> list[str]:
     errors: list[str] = []
     npm_version = version.removeprefix("v")
@@ -692,7 +716,8 @@ def forbidden_content_errors(
                 and token != current_stable_version
                 and not (
                     (
-                        token in allowed_historical_versions
+                        token == next_public_version
+                        or token in allowed_historical_versions
                         or token in stopped_versions
                     )
                     and not in_fenced_code(match.start())
@@ -707,7 +732,8 @@ def forbidden_content_errors(
             token = match.group(1)
             if token != npm_version and not (
                 (
-                    f"v{token}" in allowed_historical_versions
+                    f"v{token}" == next_public_version
+                    or f"v{token}" in allowed_historical_versions
                     or f"v{token}" in stopped_versions
                 )
                 and not in_fenced_code(match.start())
@@ -719,6 +745,40 @@ def forbidden_content_errors(
                 )
         if re.search(r"(?<![A-Za-z0-9-])mss-pr(?![A-Za-z0-9-])", text):
             errors.append(f"{path}: internal mss-pr must not be documented publicly")
+    return errors
+
+
+def candidate_documentation_errors(
+    root: Path, state: ReleaseDocumentationState
+) -> list[str]:
+    """Keep candidate records visible without making them the adopter baseline."""
+    version = state.next_public_version
+    if version is None:
+        return []
+    relative = Path(f"docs/docs/releases/{version.replace('.', '-')}.md")
+    page = root / relative
+    errors: list[str] = []
+    if not page.is_file():
+        errors.append(f"missing candidate release record: {relative}")
+    else:
+        text = page.read_text(encoding="utf-8")
+        if version not in text or not ACTIVE_TARGET_STATUS_MARKER.search(text):
+            errors.append(f"{relative}: must label {version} as a candidate")
+        if state.current_stable_version not in text:
+            errors.append(f"{relative}: must link adoption to current stable {state.current_stable_version}")
+    patterns = {
+        **unreconciled_adoption_claims(version),
+        **unpublished_operational_commands(version),
+    }
+    for relative in sorted(set(active_markdown_paths(root)) | CONTRIBUTOR_PAGES):
+        page = root / relative
+        if not page.is_file():
+            continue
+        text = page.read_text(encoding="utf-8")
+        for label, pattern in patterns.items():
+            for match in pattern.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                errors.append(f"{relative}:{line}: {label} is not current stable adoption")
     return errors
 
 
@@ -770,13 +830,16 @@ def absolute_unpublished_claim_errors(
             if not paragraph or re.fullmatch(r"\n\s*\n", paragraph):
                 offset += len(paragraph)
                 continue
-            for pattern in patterns:
-                for match in pattern.finditer(paragraph):
-                    line = text.count("\n", 0, offset + match.start()) + 1
-                    errors.append(
-                        f"{path}:{line}: {version} publication status must be stage-neutral; "
-                        "candidate surfaces can become public before stable reconciliation"
-                    )
+            sentence_offset = offset
+            for sentence in re.split(r"(?<=[。！？])|(?<=[.!?])(?=\s)", paragraph):
+                for pattern in patterns:
+                    for match in pattern.finditer(sentence):
+                        line = text.count("\n", 0, sentence_offset + match.start()) + 1
+                        errors.append(
+                            f"{path}:{line}: {version} publication status must be stage-neutral; "
+                            "candidate surfaces can become public before stable reconciliation"
+                        )
+                sentence_offset += len(sentence)
             offset += len(paragraph)
     return errors
 
@@ -847,8 +910,9 @@ def partial_release_semantic_errors(
 
     if claim_paths is None:
         scanned_claim_paths = active_markdown_paths(root)
-        if (root / CONTRIBUTOR_PAGE).is_file():
-            scanned_claim_paths.append(CONTRIBUTOR_PAGE)
+        scanned_claim_paths.extend(
+            path for path in sorted(CONTRIBUTOR_PAGES) if (root / path).is_file()
+        )
     else:
         scanned_claim_paths = list(claim_paths)
     for path in scanned_claim_paths:
@@ -1234,26 +1298,11 @@ def repository_context_errors(
     else:
         normalized = " ".join(monorepo.read_text(encoding="utf-8").split())
         release_markers = (
-            (
-                f"{version} is the current stable and adoptable Distribution",
-                f"The {version} release ran one non-publishing Root preview",
-                "Framework, Admin, Admin Web, and Root tags were then published in order",
-                "Stable promotion was a separate reviewed policy decision",
-                f"manually dispatched `npm-release.yml` from the exact `{version}` Root tag",
-                "did the workflow promote the exact Root Release to GitHub Latest",
-                "final current-stable policy reconciliation advanced current stable",
-            )
-            if state.operational_onboarding_allowed
-            else (
-                "one non-publishing Root preview",
-                "Framework, Admin, and Admin Web tags in order",
-                "Root tag starts only the Root Release and backend-image candidate",
-                f"GitHub Latest and npmjs `latest` remain {state.current_stable_version}",
-                "Stable promotion is a separate reviewed policy decision",
-                f"manually dispatch `npm-release.yml` from the exact `{version}` Root tag",
-                "promote the exact Root Release to GitHub Latest",
-                "final current-stable policy reconciliation follows through another PR",
-            )
+            "main CI and the tag workflows must succeed on the same exact commit",
+            "Root tag automatically starts `npm-release.yml`",
+            "without a separate preview or manual stable-promotion step",
+            "npm publish --tag latest --provenance",
+            "GitHub Latest only after npm identity and provenance reconcile",
         )
         for marker in (
             *(
@@ -1261,7 +1310,6 @@ def repository_context_errors(
                 for stopped in immutable_stopped_versions
             ),
             *release_markers,
-            "npm publish --tag latest --provenance",
             "do not repeat expensive qualification",
         ):
             if marker not in normalized:
@@ -1430,10 +1478,13 @@ def collect_errors(root: Path = ROOT) -> list[str]:
 
     release_root = root / "docs/docs/releases"
     actual_release_root = {path.name for path in release_root.glob("*.md")}
-    if actual_release_root != ALLOWED_RELEASE_ROOT:
+    allowed_release_root = set(ALLOWED_RELEASE_ROOT)
+    if state.next_public_version:
+        allowed_release_root.add(f"{state.next_public_version.replace('.', '-')}.md")
+    if actual_release_root != allowed_release_root:
         errors.append(
             "docs/docs/releases: current root must contain only "
-            f"{sorted(ALLOWED_RELEASE_ROOT)}, found {sorted(actual_release_root)}"
+            f"{sorted(allowed_release_root)}, found {sorted(actual_release_root)}"
         )
 
     active_paths = active_markdown_paths(root)
@@ -1444,8 +1495,10 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             active_paths,
             current_stable_version=state.current_stable_version,
             immutable_stopped_versions=state.immutable_stopped_versions,
+            next_public_version=state.next_public_version,
         )
     )
+    errors.extend(candidate_documentation_errors(root, state))
     errors.extend(
         absolute_unpublished_claim_errors(
             root,
@@ -1652,6 +1705,7 @@ def success_message(state: ReleaseDocumentationState) -> str:
         return (
             f"current documentation contract OK: {state.distribution_version} "
             "stable operational onboarding, links and archive"
+            + (f"; next candidate {state.next_public_version}" if state.next_public_version else "")
         )
     return (
         f"current documentation contract OK: {state.distribution_version} "

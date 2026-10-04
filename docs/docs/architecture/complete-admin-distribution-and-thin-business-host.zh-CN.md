@@ -92,11 +92,12 @@ v1.3.7 Root Release 已把单一 Blueprint 源嵌入工具，并绑定版本、�
 
 ## 完整发布与公共验证
 
-后续未使用版本先从同一个精确 merged-main 提交完成候选预演，再依次创建 Framework、
-Admin、Admin Web 与 Root 正式 Tag。各 Tag 只触发自己的发布面；Root Tag 发布 Root
-Release、工具与 Root 镜像，不发布 npm。Root 对账后，单独的已评审策略 PR 一次性授权
-从精确 Root Tag 手工调度 `npm-release.yml`，验证 npm provenance 后再推进 npm `latest`
-与 GitHub Latest。Docs 不参与上述顺序或门禁；网站内容确认后由可替换的
+后续未使用版本先通过同一个精确 merged-main 提交的 main 流水线，再创建 Framework、
+Admin、Admin Web 与 Root 正式 Tag。Tag 流水线直接构建并发布对应制品；Admin 在
+Framework 公开后解析其精确版本。Root Tag 同时自动启动 `npm-release.yml`，等待同一
+commit 的 main 与相关 Tag 流水线成功后，通过 Trusted Publishing 发布官方 npm，
+验证 npm 版本、完整性和 provenance 后再更新 GitHub Latest。不再要求额外候选预演、
+手工稳定晋级或人工环境审批。Docs 不参与上述顺序或门禁；网站内容确认后由可替换的
 `docs/vX.Y.Z` Tag 异步发布。更新时先删同名 Docs Release 和 Tag，再从受审 merged-main
 后代同名重建，禁止直接 force-update。公共对账仍需匿名解析 Go/npm 依赖，
 并覆盖生成、升级、测试、构建、运行、权限与浏览器关键流程。

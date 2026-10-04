@@ -246,7 +246,10 @@ def verify_release_source(
         "--verify",
         f"refs/remotes/{remote}/{branch}^{{commit}}",
     )
-    if source_mode == "release" and remote_tip != commit:
+    # Freeze a new candidate from current main. Once an immutable tag exists,
+    # its exact reviewed commit remains valid when unrelated PRs advance main;
+    # tag workflows separately require successful main checks at that same SHA.
+    if source_mode == "release" and tag is None and remote_tip != commit:
         raise SourceError(
             f"candidate {commit} does not equal current {remote}/{branch} tip "
             f"{remote_tip}"

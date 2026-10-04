@@ -69,3 +69,19 @@ Repository-source build and publication commands remain contributor-only in
 ## Workplace business content
 
 The proposed compile-time contribution interface is described in [the adopter guide](../../docs/docs/admin/workplace-business-content.md). It is unreleased and preserves the core workplace.
+
+## Candidate dependency maintenance
+
+The next candidate pins Axios 0.34.0 for
+[GHSA-x97p-jq2g-jp4f](https://github.com/advisories/GHSA-x97p-jq2g-jp4f).
+Its build graph also pins patched fast-uri 3.1.7, js-yaml 3.15.2/4.3.2,
+brace-expansion 1.1.21/2.1.7, piscina 4.9.4, and svgo 2.8.4. These overrides
+travel with the package contract to generated Thin Hosts, so installing the
+package does not restore the vulnerable transitive versions.
+
+[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
+has no upstream braces fix. Its exception expires on 2026-11-08, accepts only
+the exact declared build version, and requires every dependency path to be
+tooling-only. The production bundle check rejects braces; runtime high or
+critical advisories remain release blockers. The complete exception ledger is
+[`pnpm-audit-acceptances.json`](../../tools/security/pnpm-audit-acceptances.json).

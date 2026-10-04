@@ -374,8 +374,14 @@ func TestReleaseWorkflowContractSensitivity(t *testing.T) {
 		}
 	}
 	spec := releaseWorkflowContractTest(t.TempDir())
-	if !containsString(spec.Args, "tools.docs.test_check_current_docs") {
-		t.Fatalf("release workflow contract must validate checked-in current docs: %q", spec.Args)
+	for _, required := range []string{
+		"tools.docs.test_check_current_docs",
+		"tools.release.test_check_release_runs",
+		"tools.release.test_npm_release_workflow",
+	} {
+		if !containsString(spec.Args, required) {
+			t.Errorf("release workflow contract must include %s: %q", required, spec.Args)
+		}
 	}
 }
 

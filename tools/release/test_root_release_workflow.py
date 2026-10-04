@@ -81,86 +81,24 @@ class RootReleaseWorkflowTest(unittest.TestCase):
         ):
             self.assertIn(required, script)
 
-    def test_dispatch_is_preview_only_and_root_tag_push_publishes_automatically(self):
-        dispatch_inputs = self.workflow["on"]["workflow_dispatch"]["inputs"]
-        self.assertEqual(set(dispatch_inputs), {"version"})
-        self.assertEqual(self.workflow["on"]["push"]["tags"], ["v*.*.*"])
-        self.assertIn("Root Release candidate {0}", self.workflow["run-name"])
-        self.assertNotIn("Root Release publish", self.workflow["run-name"])
+    def test_root_tag_builds_and_publishes_without_an_independent_preview(self):
+        self.assertEqual(self.workflow['on']['push']['tags'], ['v*.*.*'])
+        self.assertNotIn('workflow_dispatch', self.workflow['on'])
+        self.assertNotIn('resolve_successful_preview', self.content)
+        self.assertEqual(self.workflow['concurrency']['group'], 'root-release-publication')
+        self.assertEqual(self.workflow['concurrency']['cancel-in-progress'], 'false')
+        gate = self.step('release-evidence', 'Require successful main workflows for this commit')['run']
+        for required in ('check_release_runs.py', '--phase main', '--commit "${RELEASE_COMMIT}"', '--version "${RELEASE_VERSION}"'):
+            self.assertIn(required, gate)
 
-        metadata = self.step("metadata", "Resolve and validate release metadata")[
-            "run"
-        ]
-        for required in (
-            'publish=true',
-            'if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]',
-            'publish=false',
-            '"${GITHUB_EVENT_NAME}" == "push"',
-            '"${GITHUB_REF_TYPE}" == "tag"',
-            "--intent \"${policy_intent}\"",
-        ):
-            self.assertIn(required, metadata)
-        for forbidden in (
-            "INPUT_PUBLISH",
-            "manual_evidence",
-            "evidence_url",
-            "readiness_run_id",
-            "root_tag_promotion_run_id",
-            "verify_readiness_run.sh",
-            "root-tag-promotion.yml",
-        ):
-            self.assertNotIn(forbidden, self.content)
-
-        self.assertEqual(
-            self.workflow["concurrency"]["group"],
-            "${{ github.event_name == 'push' && 'root-release-publication' || "
-            "format('root-release-preview-{0}', github.ref) }}",
-        )
-        self.assertEqual(
-            self.workflow["concurrency"]["cancel-in-progress"], "false"
-        )
-
-        preview = self.step(
-            "release-evidence", "Require successful exact preview"
-        )
-        self.assertEqual(preview["id"], "preview")
-        self.assertNotIn("if", preview)
-        self.assertEqual(
-            self.jobs["release-evidence"]["outputs"]["preview-run-id"],
-            "${{ steps.preview.outputs.run-id }}",
-        )
-        script = preview["run"]
-        for required in (
-            "tools/release/resolve_successful_preview.sh",
-            '--repository "${GITHUB_REPOSITORY}"',
-            '--commit "${RELEASE_COMMIT}"',
-            '--version "${RELEASE_VERSION}"',
-            '--actor "${RELEASE_ACTOR_LOGIN}"',
-            'echo "run-id=${preview_run_id}"',
-        ):
-            self.assertIn(required, script)
-        self.assertNotIn("gh release view", script)
-        self.assertNotIn("refusing to mutate", script)
-        for forbidden in ("gh run watch", "gh workflow run", "sleep "):
-            self.assertNotIn(forbidden, script)
-
-    def test_container_preview_allows_only_the_nested_permission_ceiling(self):
-        container_workflow = yaml.load(
-            CONTAINER_WORKFLOW_PATH.read_text(encoding="utf-8"),
-            Loader=yaml.BaseLoader,
-        )
-        preview = self.jobs["container-preview"]
-        self.assertEqual(
-            preview["permissions"],
-            container_workflow["jobs"]["publish"]["permissions"],
-        )
-        self.assertEqual(
-            preview["if"], "needs.metadata.outputs.publish != 'true'"
-        )
-        self.assertEqual(
-            set(preview["with"]), {"version", "release_preview"}
-        )
-        self.assertEqual(preview["with"]["release_preview"], "true")
+    def test_root_does_not_repeat_container_build_or_frontend_build(self):
+        self.assertNotIn('container-preview', self.jobs)
+        self.assertNotIn('frontend-build', self.jobs)
+        download = self.step('assemble', 'Reuse the published frontend release assets')['run']
+        self.assertIn('gh release download "web/antd-v6/${RELEASE_VERSION}"', download)
+        self.assertIn('sha256sum --strict --check SHA256SUMS.frontend-v6', download)
+        self.assertIn('sha256sum --strict --check SHA256SUMS.admin-web', download)
+        self.assertNotIn('pnpm build', download)
 
     def test_root_requires_only_exact_public_component_releases(self):
         evidence = self.step(
@@ -263,88 +201,13 @@ class RootReleaseWorkflowTest(unittest.TestCase):
         ):
             self.assertIn(expected, upload.splitlines())
 
-    def test_preview_packages_exact_admin_web_bytes_before_public_npm(self):
-        pack = self.step(
-            "frontend-build", "Pack exact Admin Web package and release evidence"
-        )["run"]
-        for required in (
-            '"${RELEASE_COMMIT}:web/antd-v6"',
-            'manifest["version"] = sys.argv[2]',
-            'manifest["gitHead"] = sys.argv[3]',
-            'pnpm pack --pack-destination "${package_dir}"',
-            "verify_admin_web_package.py",
-            "generate_admin_web_sbom.py",
-            "SHA256SUMS.admin-web",
-        ):
-            self.assertIn(required, pack)
-        self.assertNotIn("admin-web-candidate.tgz", pack)
-
-        uploaded = self.step(
-            "frontend-build", "Upload primary V6 artifact"
-        )["with"]["path"].splitlines()
-        self.assertNotIn("web/antd-v6/admin-web-candidate.tgz", uploaded)
-        self.assertIn("web/antd-v6/admin-web-release-package/*.tgz", uploaded)
-        self.assertIn(
-            "web/antd-v6/admin-web-release-package/admin-web-package.json", uploaded
-        )
-        self.assertIn(
-            "web/antd-v6/admin-web-release-package/admin-web.spdx.json", uploaded
-        )
-        self.assertIn(
-            "web/antd-v6/admin-web-release-package/SHA256SUMS.admin-web", uploaded
-        )
-
+    def test_assembly_smokes_exact_admin_web_package_without_public_npm(self):
         assemble = self.step("assemble", "Assemble release packages")["run"]
         smoke = assemble.split('smoke_dir="$(mktemp -d)"', 1)[1]
         self.assertIn('package_name = "@mss-boot-io/admin-web"', smoke)
         self.assertIn('"integrity": integrity', smoke)
         self.assertIn('--contributor-npm-registry "${registry_url}"', smoke)
         self.assertNotIn("registry.npmjs.org", smoke)
-
-    def test_preview_exports_one_verified_multiarch_oci_image_without_push(self):
-        image = self.step(
-            "frontend-build", "Qualify the exact V6 multi-platform release image"
-        )
-        self.assertEqual(image["id"], "image")
-        self.assertRegex(
-            image["uses"], r"^docker/build-push-action@[0-9a-f]{40}$"
-        )
-        self.assertEqual(image["with"]["push"], "false")
-        self.assertEqual(
-            image["with"]["outputs"],
-            "type=oci,dest=${{ runner.temp }}/frontend-v6-image.oci.tar",
-        )
-        self.assertEqual(image["with"]["platforms"], "linux/amd64,linux/arm64")
-        self.assertEqual(image["with"]["provenance"], "mode=max")
-        self.assertEqual(image["with"]["sbom"], "true")
-
-        verify = self.step(
-            "frontend-build", "Verify and stage the exact V6 OCI image"
-        )["run"]
-        for required in (
-            'archive_digest="$(' ,
-            'test "${archive_digest}" = "${BUILD_DIGEST}"',
-            '"blobs/sha256/${manifest_hash}"',
-            '.platform.architecture == "amd64"',
-            '.platform.architecture == "arm64"',
-            'inspect --config "oci-archive:${source_archive}"',
-            "FRONTEND-V6-IMAGE-INFO",
-            "SHA256SUMS.frontend-v6-image",
-        ):
-            self.assertIn(required, verify)
-
-        upload = self.step(
-            "frontend-build", "Upload primary V6 artifact"
-        )["with"]
-        paths = upload["path"].splitlines()
-        for expected in (
-            "web/antd-v6/frontend-v6-image.oci.tar",
-            "web/antd-v6/FRONTEND-V6-IMAGE-INFO",
-            "web/antd-v6/SHA256SUMS.frontend-v6-image",
-        ):
-            self.assertIn(expected, paths)
-        self.assertEqual(upload["compression-level"], "0")
-        self.assertEqual(upload["retention-days"], "30")
 
     def test_public_release_asset_set_is_exact_and_has_no_retired_tools(self):
         publish = self.step(
@@ -377,7 +240,7 @@ class RootReleaseWorkflowTest(unittest.TestCase):
         for required in (
             "verify_release_assets()",
             '.isDraft == false and .isPrerelease == $prerelease',
-            "is already public with the exact preview assets",
+            "is already public with the exact tag assets",
             "exit 0",
             '--latest=false',
         ):
@@ -444,130 +307,20 @@ class RootReleaseWorkflowTest(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, notes)
 
-    def test_preview_builds_exact_artifacts_without_repeating_local_or_pr_quality_gates(self):
-        for job_name in (
-            "container-preview",
-            "backend-build",
-            "frontend-build",
-            "assemble",
-        ):
-            with self.subTest(job=job_name):
-                self.assertEqual(
-                    self.jobs[job_name]["if"],
-                    "needs.metadata.outputs.publish != 'true'",
-                )
-                self.assertNotIn("environment", self.jobs[job_name])
-
-        self.assertNotIn("foundation-compatibility", self.jobs)
-        self.assertNotIn("test", self.jobs)
-        self.assertEqual(self.jobs["backend-build"]["needs"], "metadata")
-        self.assertEqual(
-            self.jobs["assemble"]["needs"],
-            ["metadata", "container-preview", "backend-build", "frontend-build"],
-        )
-
-        container_preview = self.jobs["container-preview"]
-        self.assertEqual(
-            container_preview["uses"], "./.github/workflows/container.yml"
-        )
-        self.assertEqual(
-            container_preview["with"]["version"],
-            "${{ needs.metadata.outputs.version }}",
-        )
-        self.assertEqual(
-            container_preview["with"]["release_preview"], "true"
-        )
-        self.assertIn("container-preview", self.jobs["assemble"]["needs"])
-        assemble = self.step("assemble", "Assemble release packages")["run"]
-        for required in (
-            'root_image_dir="root-image-preview-${RELEASE_VERSION}"',
-            'sha256sum --check SHA256SUMS.root-image',
-            'tar -xOf "${root_image_archive}" index.json',
-            'Root OCI layout must expose exactly one top-level image',
-            '.platform.architecture == "amd64"',
-            '.platform.architecture == "arm64"',
-            'grep -Fx "version=${RELEASE_VERSION}"',
-            'grep -Fx "commit=${RELEASE_COMMIT}"',
-            'grep -Fx "digest=${root_image_digest}"',
-        ):
-            self.assertIn(required, assemble)
-
-        frontend_step_names = {
-            step["name"] for step in self.jobs["frontend-build"]["steps"]
-        }
-        self.assertTrue(
-            {
-                "Build same-origin primary V6 frontend",
-                "Smoke-test primary V6 delivery",
-                "Package and verify portable primary V6 artifact",
-                "Pack exact Admin Web package and release evidence",
-                "Qualify the exact V6 multi-platform release image",
-                "Verify and stage the exact V6 OCI image",
-                "Upload primary V6 artifact",
-            }.issubset(frontend_step_names)
-        )
-        for removed_step in (
-            "Enforce V6 dependency policy",
-            "Qualify V6 lint and unit behavior",
-            "Create ephemeral browser administrator secret",
-            "Qualify browser permission and parity behavior",
-        ):
-            self.assertNotIn(removed_step, frontend_step_names)
-        frontend_scripts = "\n".join(
-            step.get("run", "") for step in self.jobs["frontend-build"]["steps"]
-        )
-        for repeated_quality_gate in (
-            "pnpm run deps:check",
-            "pnpm run audit:release",
-            "pnpm run lint",
-            "pnpm run test:ci",
-            "pnpm run test:e2e",
-            "playwright install",
-        ):
-            self.assertNotIn(repeated_quality_gate, frontend_scripts)
-
-        publish = self.jobs["publish"]
-        self.assertEqual(
-            publish["if"], "needs.metadata.outputs.publish == 'true'"
-        )
-        self.assertEqual(publish["needs"], ["metadata", "release-evidence"])
-        self.assertEqual(publish["environment"], "release-auto")
-        self.assertEqual(publish["permissions"]["contents"], "write")
-        self.assertEqual(
-            [step["name"] for step in publish["steps"]],
-            [
-                "Require authorized release operator",
-                "Download exact preview packages",
-                "Prepare deterministic root release notes",
-                "Stage, verify, and publish GitHub release atomically",
-            ],
-        )
-        download = self.step("publish", "Download exact preview packages")
-        self.assertEqual(
-            download["with"]["run-id"],
-            "${{ needs.release-evidence.outputs.preview-run-id }}",
-        )
-        self.assertEqual(
-            download["with"]["name"],
-            "release-packages-${{ needs.metadata.outputs.version }}",
-        )
-        self.assertEqual(download["with"]["repository"], "${{ github.repository }}")
-        publish_scripts = "\n".join(
-            step.get("run", "") for step in publish["steps"]
-        )
-        for forbidden in (
-            "go test",
-            "pnpm ",
-            "docker build",
-            "docker push",
-            "docker login",
-            "container.yml",
-            "npm-release.yml",
-            "gh run watch",
-            "gh workflow run",
-            "sleep ",
-        ):
-            self.assertNotIn(forbidden, publish_scripts)
+    def test_tag_builds_once_and_publishes_same_run_artifacts(self):
+        for name in ('backend-build', 'assemble'):
+            self.assertNotIn('if', self.jobs[name])
+            self.assertNotIn('environment', self.jobs[name])
+        self.assertEqual(self.jobs['backend-build']['needs'], ['metadata', 'release-evidence'])
+        self.assertEqual(self.jobs['assemble']['needs'], ['metadata', 'backend-build', 'release-evidence'])
+        self.assertEqual(self.jobs['publish']['needs'], ['metadata', 'release-evidence', 'assemble'])
+        download = self.step('publish', 'Download assembled packages from this tag run')['with']
+        self.assertNotIn('run-id', download)
+        self.assertNotIn('repository', download)
+        self.assertEqual(download['name'], 'release-packages-${{ needs.metadata.outputs.version }}')
+        self.assertEqual(self.jobs['publish']['environment'], 'release-auto')
+        for forbidden in ('go test ./...', 'pnpm run test:ci', 'playwright install', 'mss verify --all', 'resolve_successful_preview.sh'):
+            self.assertNotIn(forbidden, self.content)
 
     def test_all_run_blocks_are_valid_bash(self):
         for job_name, job in self.jobs.items():

@@ -83,36 +83,17 @@ class ContainerWorkflowTest(unittest.TestCase):
             "github.ref_name == needs.build.outputs.version }}",
         )
         self.assertNotIn("workflow_dispatch", self.workflow["on"])
-        self.assertEqual(
-            set(self.workflow["on"]["workflow_call"]["inputs"]),
-            {"version", "release_preview"},
-        )
-        preview_input = self.workflow["on"]["workflow_call"]["inputs"][
-            "release_preview"
-        ]
-        self.assertEqual(preview_input["type"], "boolean")
-        self.assertEqual(preview_input["required"], "true")
-        self.assertIn("inputs.release_preview == true", self.workflow["run-name"])
-        self.assertNotIn("github.event_name == 'workflow_call'", self.content)
-        self.assertNotIn("workflow_dispatch", self.workflow["run-name"])
-
-        root_content = (
-            REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
-        ).read_text(encoding="utf-8")
-        root_workflow = yaml.load(root_content, Loader=yaml.BaseLoader)
-        self.assertEqual(
-            root_workflow["jobs"]["container-preview"]["with"]["release_preview"],
-            "true",
-        )
+        self.assertNotIn("workflow_call", self.workflow["on"])
+        self.assertNotIn("resolve_successful_preview", self.content)
 
     def test_root_tag_container_run_does_not_share_the_root_release_lock(self):
         self.assertEqual(
             self.workflow["concurrency"]["group"],
-            "container-${{ inputs.release_preview == true && format('preview-{0}-{1}', inputs.version, github.sha) || github.ref }}",
+            "container-${{ github.ref }}",
         )
         self.assertEqual(
             self.workflow["concurrency"]["cancel-in-progress"],
-            "${{ inputs.release_preview != true && !startsWith(github.ref, 'refs/tags/') }}",
+            "${{ !startsWith(github.ref, 'refs/tags/') }}",
         )
         root_content = (
             REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
@@ -123,71 +104,14 @@ class ContainerWorkflowTest(unittest.TestCase):
     def test_pr_smokes_amd64_while_root_preview_builds_and_smokes_one_exact_multiarch_artifact(self):
         build_steps = self.jobs["build"]["steps"]
         build_info = next(step for step in build_steps if step.get("id") == "build-info")
-        for required in (
-            "publish=false",
-            "preview=false",
-            'release_preview="${INPUT_RELEASE_PREVIEW:-false}"',
-            'release_preview}" != "true" && -n "${INPUT_VERSION}',
-            "version is only valid for an explicit release preview",
-            'if [[ "${release_preview}" == "true" ]]',
-            "release preview requires one explicit version",
-            'version="${INPUT_VERSION}"',
-            "preview=true",
-            'elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]',
-            "publish=true",
-            'stable=false',
-            'if [[ "${version}" =~ ^v(0|[1-9][0-9]*)\\.',
-            'echo "stable=${stable}"',
-            'echo "preview=${preview}"',
-            "--intent qualify",
-        ):
-            self.assertIn(required, build_info["run"])
-        self.assertNotIn("--intent publish", build_info["run"])
-        self.assertNotIn("INPUT_PUBLISH", build_info["run"])
-        self.assertNotIn("workflow_dispatch", build_info["run"])
-        self.assertNotIn("verify_readiness_run.sh", build_info["run"])
-
-        operator_gate = next(
-            step
-            for step in build_steps
-            if step.get("name") == "Require authorized release operator"
-        )
-        self.assertEqual(
-            operator_gate["if"],
-            "${{ inputs.release_preview == true || github.ref_type == 'tag' }}",
-        )
-
-        self.assertEqual(
-            set(self.workflow["on"]["workflow_call"]["inputs"]),
-            {"version", "release_preview"},
-        )
-        self.assertEqual(
-            self.workflow["on"]["workflow_call"]["inputs"]["version"]["required"],
-            "true",
-        )
-
-        preview = next(
-            step
-            for step in build_steps
-            if step.get("name") == "Require successful exact preview"
-        )
-        self.assertEqual(preview["id"], "preview")
-        self.assertEqual(
-            preview["if"], "steps.build-info.outputs.publish == 'true'"
-        )
-        for required in (
-            "tools/release/resolve_successful_preview.sh",
-            '--repository "${GITHUB_REPOSITORY}"',
-            '--commit "${GITHUB_SHA}"',
-            '--version "${RELEASE_VERSION}"',
-            "--actor lwnmengjing",
-        ):
-            self.assertIn(required, preview["run"])
-        self.assertIn('echo "run-id=${preview_run_id}"', preview["run"])
-        self.assertEqual(
-            self.jobs["build"]["outputs"]["preview-run-id"],
-            "${{ steps.preview.outputs.run-id }}",
-        )
+        for required in ('publish=false', 'publish=true', 'version="${GITHUB_REF_NAME}"', '--intent qualify'):
+            self.assertIn(required, build_info['run'])
+        gate = next(step for step in build_steps if step.get('name') == 'Require merged source and successful main workflows')
+        self.assertEqual(gate['if'], "github.ref_type == 'tag'")
+        self.assertIn('verify_release_source.py', gate['run'])
+        self.assertIn('check_release_runs.py', gate['run'])
+        self.assertIn('--phase main', gate['run'])
+        self.assertLess(build_steps.index(gate), next(i for i, step in enumerate(build_steps) if step.get('name') == 'Vendor workspace for Docker context'))
 
         build_image = next(
             step
@@ -199,7 +123,7 @@ class ContainerWorkflowTest(unittest.TestCase):
         self.assertEqual(build_image["with"]["platforms"], "linux/amd64")
         self.assertEqual(
             build_image["if"],
-            "github.ref_type != 'tag' && inputs.release_preview != true",
+            "github.ref_type != 'tag'",
         )
         self.assertFalse(
             any(
@@ -213,7 +137,7 @@ class ContainerWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(
             smoke["if"],
-            "github.ref_type != 'tag' && inputs.release_preview != true",
+            "github.ref_type != 'tag'",
         )
         for label in (
             "org.opencontainers.image.title=mss-boot-admin",
@@ -228,7 +152,7 @@ class ContainerWorkflowTest(unittest.TestCase):
             if step.get("name") == "Qualify the exact multi-platform release image"
         )
         self.assertEqual(
-            qualification["if"], "steps.build-info.outputs.preview == 'true'"
+            qualification["if"], "steps.build-info.outputs.publish == 'true'"
         )
         self.assertEqual(qualification["id"], "release-image")
         self.assertEqual(qualification["with"]["push"], "false")
@@ -277,11 +201,11 @@ class ContainerWorkflowTest(unittest.TestCase):
         upload = next(
             step
             for step in build_steps
-            if step.get("name") == "Upload exact Root OCI preview artifact"
+            if step.get("name") == "Upload exact Root OCI artifact"
         )
         self.assertTrue(upload["uses"].startswith("actions/upload-artifact@"))
         self.assertEqual(
-            upload["if"], "steps.build-info.outputs.preview == 'true'"
+            upload["if"], "steps.build-info.outputs.publish == 'true'"
         )
         self.assertEqual(
             upload["with"]["name"],
@@ -305,7 +229,7 @@ class ContainerWorkflowTest(unittest.TestCase):
         for step in build_steps:
             if step.get("name") in non_tag_setup_steps:
                 with self.subTest(step=step["name"]):
-                    self.assertEqual(step["if"], "github.ref_type != 'tag'")
+                    self.assertNotIn("if", step)
 
         non_preview_ci_steps = {
             "Build candidate image",
@@ -316,84 +240,38 @@ class ContainerWorkflowTest(unittest.TestCase):
                 with self.subTest(step=step["name"]):
                     self.assertEqual(
                         step["if"],
-                        "github.ref_type != 'tag' && inputs.release_preview != true",
+                        "github.ref_type != 'tag'",
                     )
 
         root_preview_only_steps = {
             "Set up QEMU",
             "Qualify the exact multi-platform release image",
             "Verify and stage the exact Root OCI image",
-            "Upload exact Root OCI preview artifact",
+            "Upload exact Root OCI artifact",
         }
         for step in build_steps:
             if step.get("name") in root_preview_only_steps:
                 with self.subTest(step=step["name"]):
                     self.assertEqual(
-                        step["if"], "steps.build-info.outputs.preview == 'true'"
+                        step["if"], "steps.build-info.outputs.publish == 'true'"
                     )
 
-    def test_reusable_preview_uses_explicit_input_under_caller_event_context(self):
-        build_info = next(
-            step
-            for step in self.jobs["build"]["steps"]
-            if step.get("id") == "build-info"
-        )
-        policy = yaml.load(
-            (REPOSITORY_ROOT / ".mss" / "release-policy.yaml").read_text(
-                encoding="utf-8"
-            ),
-            Loader=yaml.BaseLoader,
-        )
-        version = policy["spec"]["nextPublicVersion"]
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "output"
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "GITHUB_EVENT_NAME": "workflow_dispatch",
-                    "GITHUB_SHA": "a" * 40,
-                    "GITHUB_REF_TYPE": "branch",
-                    "GITHUB_REF_NAME": "main",
-                    "GITHUB_OUTPUT": str(output),
-                    "GITHUB_REPOSITORY": "mss-boot-io/mss-boot-admin",
-                    "REGISTRY": "ghcr.io",
-                    "IMAGE_NAME": "mss-boot-io/mss-boot-admin",
-                    "INPUT_RELEASE_PREVIEW": "true",
-                    "INPUT_VERSION": version,
-                }
-            )
-            completed = subprocess.run(
-                ["bash", "-c", build_info["run"]],
-                cwd=REPOSITORY_ROOT,
-                env=environment,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(completed.returncode, 0, completed.stderr)
-            values = dict(
-                line.split("=", 1)
-                for line in output.read_text(encoding="utf-8").splitlines()
-            )
-            self.assertEqual(values["version"], version)
-            self.assertEqual(values["publish"], "false")
-            self.assertEqual(values["preview"], "true")
-            self.assertEqual(values["stable"], "true")
-
-            environment["INPUT_RELEASE_PREVIEW"] = "false"
-            rejected = subprocess.run(
-                ["bash", "-c", build_info["run"]],
-                cwd=REPOSITORY_ROOT,
-                env=environment,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertNotEqual(rejected.returncode, 0)
-            self.assertIn(
-                "version is only valid for an explicit release preview",
-                rejected.stderr,
-            )
+    def test_metadata_executes_for_main_and_exact_tag_and_rejects_invalid_versions(self):
+        script = next(step['run'] for step in self.jobs['build']['steps'] if step.get('id') == 'build-info')
+        policy = yaml.load((REPOSITORY_ROOT / '.mss/release-policy.yaml').read_text(), Loader=yaml.BaseLoader)
+        version = policy['spec']['nextPublicVersion']
+        cases = [('branch', 'main', False, True), ('tag', version, True, True), ('tag', 'v01.3.8', False, False), ('tag', 'v1.3.5', False, False)]
+        for ref_type, ref_name, publish, succeeds in cases:
+            with self.subTest(ref=ref_name), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / 'output'
+                environment = dict(os.environ, GITHUB_REF_TYPE=ref_type, GITHUB_REF_NAME=ref_name,
+                    GITHUB_SHA='a'*40, GITHUB_OUTPUT=str(output), REGISTRY='ghcr.io', IMAGE_NAME='owner/repo')
+                result = subprocess.run(['bash', '-c', script], cwd=REPOSITORY_ROOT, env=environment, text=True, capture_output=True)
+                self.assertEqual(result.returncode == 0, succeeds, result.stderr)
+                if succeeds:
+                    values = dict(line.split('=', 1) for line in output.read_text().splitlines())
+                    self.assertEqual(values['publish'], str(publish).lower())
+                    self.assertEqual(values['version'], version if publish else 'sha-'+'a'*12)
 
     def test_publish_job_keeps_policy_and_image_evidence_without_manual_gate(self):
         publish_steps = self.jobs["publish"]["steps"]
@@ -422,23 +300,21 @@ class ContainerWorkflowTest(unittest.TestCase):
             step
             for step in publish_steps
             if step.get("name")
-            == "Download exact Root OCI image from the successful preview"
+            == "Download exact Root OCI image from this tag run"
         )
         self.assertTrue(download["uses"].startswith("actions/download-artifact@"))
         self.assertEqual(
             download["with"]["name"],
             "root-image-preview-${{ needs.build.outputs.version }}",
         )
-        self.assertEqual(
-            download["with"]["run-id"],
-            "${{ needs.build.outputs.preview-run-id }}",
-        )
-        self.assertEqual(download["with"]["repository"], "${{ github.repository }}")
+        self.assertNotIn("run-id", download["with"])
+        self.assertNotIn("repository", download["with"])
+        self.assertNotIn("repository", download["with"])
 
         verification = next(
             step
             for step in publish_steps
-            if step.get("name") == "Verify the exact Root OCI preview artifact"
+            if step.get("name") == "Verify the exact Root OCI artifact"
         )
         for required in (
             "sha256sum --check SHA256SUMS.root-image",
@@ -461,7 +337,7 @@ class ContainerWorkflowTest(unittest.TestCase):
         publication = next(
             step
             for step in publish_steps
-            if step.get("name") == "Publish the exact preview Root OCI image"
+            if step.get("name") == "Publish the exact Root OCI image"
         )
         self.assertEqual(publication["id"], "image")
         self.assertEqual(publication["env"]["VERSION"], "${{ needs.build.outputs.version }}")
@@ -550,7 +426,7 @@ class ContainerWorkflowTest(unittest.TestCase):
         image_script = next(
             step
             for step in self.jobs["publish"]["steps"]
-            if step.get("name") == "Publish the exact preview Root OCI image"
+            if step.get("name") == "Publish the exact Root OCI image"
         )["run"]
         calls = [line.strip() for line in image_script.splitlines()]
         ordered_calls = (

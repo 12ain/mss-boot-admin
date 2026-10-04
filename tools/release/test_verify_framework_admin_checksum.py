@@ -18,10 +18,10 @@ SPEC.loader.exec_module(CHECKSUM)
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_FRAMEWORK_SUM = "h1:5ZA4aTgFSYIzZuSXG8an1HqssdO6PoxrHdNDhHMPvng="
-EXPECTED_FRAMEWORK_GO_MOD_SUM = "h1:qejH+UcGKJRwGtMQisbYCLg7nYf4TEOe/h6fGJ1nK7Q="
-EXPECTED_ADMIN_SUM = "h1:sQl2Q58DVYF1NTikN8OhUcnbyF949TtU1hbyyLaTSQU="
-EXPECTED_ADMIN_GO_MOD_SUM = "h1:v/KJqYYGo5PYW4PNHnctx3ujxQ5yzt8/ZgD/MmUyzxs="
+EXPECTED_FRAMEWORK_SUM = "h1:hrOY8jTFYQEemuDSg1gnh04adVpPBhRb0CMD3Du9ClE="
+EXPECTED_FRAMEWORK_GO_MOD_SUM = "h1:fzCEucxACSds872sl1uW8yQhZJ4MszLSpzcau1lQNWo="
+EXPECTED_ADMIN_SUM = "h1:lDdGzQ+LZLKs+/Q+dV7bftmO172Vjps6amlASIqi8M4="
+EXPECTED_ADMIN_GO_MOD_SUM = "h1:6t+dNvWg4JUQkqemjAICId72w918VZ8pRMbXo2xWahY="
 EXPECTED_RELEASE_COMMIT = "77b53d41092741eac62fa6418c0bdbf87413c7cd"
 
 
@@ -98,6 +98,7 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
             .read_text(encoding="utf-8")
             .replace(EXPECTED_RELEASE_COMMIT, release_commit)
             .replace("v1.3.7", "v1.3.3")
+            .replace("v1.3.8", "v1.3.3")
         )
         policy_path = root / ".mss" / "release-policy.yaml"
         policy_path.parent.mkdir(parents=True)
@@ -116,36 +117,49 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
             self.fail(f"unsupported admin tag fixture mode: {admin_tag}")
         return release_commit
 
-    def test_published_current_stable_tree_matches_adopter_metadata(self):
-        result = CHECKSUM.verify_current_stable_repository(
-            REPOSITORY_ROOT,
-            version="v1.3.7",
-        )
+    def test_refresh_bootstraps_a_new_version_without_relabeling_stable_sums(self):
+        with tempfile.TemporaryDirectory(prefix="mss-checksum-next-version-") as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+            original = (root / "admin/go.sum").read_text()
+            for name in ("admin/go.mod", "go.work"):
+                path = root / name
+                path.write_text(path.read_text().replace("v1.3.3", "v1.3.4"))
+            self._git(root, "add", "admin/go.mod", "go.work")
+            self._git(root, "commit", "-qm", "prepare next version")
+            first = CHECKSUM.refresh_repository_metadata(root, version="v1.3.4", go_command=os.environ.get("MSS_TEST_GO", "go"))
+            updated = (root / "admin/go.sum").read_text()
+            for line in original.splitlines():
+                self.assertIn(line, updated)
+            self.assertIn(f"{CHECKSUM.FRAMEWORK_MODULE} v1.3.4 h1:", updated)
+            self._git(root, "add", *first["updatedFiles"])
+            self._git(root, "commit", "-qm", "record computed checksums")
+            result = CHECKSUM.verify_repository(root, version="v1.3.4", go_command=os.environ.get("MSS_TEST_GO", "go"))
+            self.assertTrue(result["success"])
+            second = CHECKSUM.refresh_repository_metadata(root, version="v1.3.4", go_command=os.environ.get("MSS_TEST_GO", "go"))
+            self.assertEqual(second["updatedFiles"], [])
+
+    def test_refresh_rejects_partial_or_duplicate_candidate_checksum_pairs(self):
+        module = CHECKSUM.FRAMEWORK_MODULE
+        for raw in (f"{module} v1.3.4 h1:old\n", f"{module} v1.3.4 h1:a\n{module} v1.3.4 h1:b\n{module} v1.3.4/go.mod h1:c\n"):
+            with self.subTest(raw=raw), self.assertRaises(CHECKSUM.ChecksumContractError):
+                CHECKSUM._updated_go_sum(raw.encode(), module=module, version="v1.3.4", module_sum="h1:new", go_mod_sum="h1:new-mod", label="fixture")
+
+    def test_candidate_tree_matches_prepared_metadata(self):
+        version = CHECKSUM._load_release_policy(REPOSITORY_ROOT, reference="HEAD")["nextPublicVersion"]
+        result = CHECKSUM.verify_repository(REPOSITORY_ROOT, version=version)
         self.assertTrue(result["success"])
-        self.assertEqual(result["version"], "v1.3.7")
+        self.assertEqual(result["version"], version)
         self.assertGreater(result["candidateFiles"], 0)
         self.assertGreater(result["adminCandidateFiles"], 0)
         self.assertEqual(result["sum"], EXPECTED_FRAMEWORK_SUM)
         self.assertEqual(result["goModSum"], EXPECTED_FRAMEWORK_GO_MOD_SUM)
-        self.assertEqual(
-            result["adminSum"],
-            EXPECTED_ADMIN_SUM,
-        )
-        self.assertEqual(
-            result["adminGoModSum"],
-            EXPECTED_ADMIN_GO_MOD_SUM,
-        )
+        self.assertEqual(result["adminSum"], EXPECTED_ADMIN_SUM)
+        self.assertEqual(result["adminGoModSum"], EXPECTED_ADMIN_GO_MOD_SUM)
         self.assertEqual(result["dependencyMode"], "replace-free-file-proxy")
-        self.assertEqual(result["sourceMode"], "current-stable")
-        self.assertEqual(result["sourceCommit"], EXPECTED_RELEASE_COMMIT)
-        self.assertEqual(
-            result["sourceTags"],
-            {
-                "root": "v1.3.7",
-                "framework": "mss-boot/v1.3.7",
-                "admin": "admin/v1.3.7",
-            },
-        )
+        self.assertEqual(result["sourceMode"], "candidate")
+        self.assertEqual(result["sourceCommit"], self._git(REPOSITORY_ROOT, "rev-parse", "HEAD").stdout.strip())
+
 
     def test_current_stable_uses_release_tree_after_later_component_docs_change(self):
         with tempfile.TemporaryDirectory(

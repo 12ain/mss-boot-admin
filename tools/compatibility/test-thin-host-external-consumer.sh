@@ -345,7 +345,7 @@ PY
 new_app_raw="${raw_report_dir}/new-app.json"
 (
   cd "${foundation_root}"
-  go run ./cmd/mss new app compatibility-admin \
+  GOWORK=off go run -mod=readonly ./cmd/mss new app compatibility-admin \
     --display-name "Compatibility Administration" \
     --module example.com/compatibility-admin \
     --repository example/compatibility-admin \
@@ -439,12 +439,19 @@ jq -e \
      "build": "mss-admin-web build"
    } and
    .pnpm.overrides == {
-     "react": "19.2.8",
-     "react-dom": "19.2.8",
-     "antd": "6.6.1",
      "@ant-design/pro-components": "3.1.14-6",
      "@tanstack/react-query": "5.101.4",
-     "axios": "0.33.0"
+     "antd": "6.6.1",
+     "axios": "0.34.0",
+     "brace-expansion@1": "1.1.21",
+     "brace-expansion@2": "2.1.7",
+     "fast-uri": "3.1.7",
+     "js-yaml@3": "3.15.2",
+     "js-yaml@4": "4.3.2",
+     "piscina@4": "4.9.4",
+     "react": "19.2.8",
+     "react-dom": "19.2.8",
+     "svgo@2": "2.8.4"
    } and
    (.pnpm | has("patchedDependencies") | not)' \
   "${host_root}/web/package.json" >/dev/null
@@ -1256,13 +1263,13 @@ PY
   cd "${foundation_root}"
   module_write_raw="${raw_report_dir}/module-write.json"
   module_check_raw="${raw_report_dir}/module-check.json"
-  go run ./cmd/mss --root "${host_root}" module generate \
+  GOWORK=off go run -mod=readonly ./cmd/mss --root "${host_root}" module generate \
     .mss/modules/example-supplier.yaml \
     --write \
     --frontend-target antd-v6 \
     --format json \
     > "${module_write_raw}"
-  go run ./cmd/mss --root "${host_root}" module generate \
+  GOWORK=off go run -mod=readonly ./cmd/mss --root "${host_root}" module generate \
     .mss/modules/example-supplier.yaml \
     --check \
     --frontend-target antd-v6 \
@@ -1295,7 +1302,7 @@ first_digest="$(tree_digest "${host_root}")"
 module_second_write_raw="${raw_report_dir}/module-second-write.json"
 (
   cd "${foundation_root}"
-  go run ./cmd/mss --root "${host_root}" module generate \
+  GOWORK=off go run -mod=readonly ./cmd/mss --root "${host_root}" module generate \
     .mss/modules/example-supplier.yaml \
     --write \
     --frontend-target antd-v6 \
@@ -1386,7 +1393,7 @@ upgrade_repeat_plan_raw="${raw_report_dir}/handwritten-upgrade-repeat-plan.json"
 echo "external Thin Host stage: plan handwritten extension upgrade"
 (
   cd "${foundation_root}"
-  go run ./cmd/mss --root "${host_root}" upgrade admin "${distribution_version}" \
+  GOWORK=off go run -mod=readonly ./cmd/mss --root "${host_root}" upgrade admin "${distribution_version}" \
     --foundation "${foundation_root}" \
     --contributor-npm-registry "${registry_url}" \
     --format json \
@@ -1407,7 +1414,7 @@ assert_upgrade_preserves_handwritten_seams \
 echo "external Thin Host stage: apply handwritten extension upgrade"
 (
   cd "${foundation_root}"
-  go run ./cmd/mss --root "${host_root}" upgrade admin "${distribution_version}" \
+  GOWORK=off go run -mod=readonly ./cmd/mss --root "${host_root}" upgrade admin "${distribution_version}" \
     --foundation "${foundation_root}" \
     --contributor-npm-registry "${registry_url}" \
     --apply \
@@ -1432,7 +1439,7 @@ upgrade_tree_before_repeat_plan="$(tree_digest "${host_root}")"
 echo "external Thin Host stage: repeat handwritten extension upgrade plan"
 (
   cd "${foundation_root}"
-  go run ./cmd/mss --root "${host_root}" upgrade admin "${distribution_version}" \
+  GOWORK=off go run -mod=readonly ./cmd/mss --root "${host_root}" upgrade admin "${distribution_version}" \
     --foundation "${foundation_root}" \
     --contributor-npm-registry "${registry_url}" \
     --format json \

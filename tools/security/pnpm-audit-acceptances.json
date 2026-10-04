@@ -2,29 +2,25 @@
   "schemaVersion": 1,
   "acceptances": [
     {
-      "advisory": "GHSA-w3rx-r6r6-pgpr",
-      "package": "image-size",
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
       "severity": "high",
       "patchedVersions": "<0.0.0",
-      "scopes": ["docs", "web/antd-v6"],
+      "scopes": [
+        "docs",
+        "web/antd-v6"
+      ],
       "expiresOn": "2026-11-08",
-      "reason": "No patched release exists. The package is confined to Less in the build graph; the release bundle gate rejects image-size at runtime."
-    },
-    {
-      "advisory": "GHSA-5p2g-fcmc-qvqq",
-      "package": "image-size",
-      "severity": "high",
-      "patchedVersions": "<0.0.0",
-      "scopes": ["docs", "web/antd-v6"],
-      "expiresOn": "2026-11-08",
-      "reason": "No patched release exists. The package is confined to Less in the build graph; the release bundle gate rejects image-size at runtime."
+      "reason": "No patched release exists for the recursive glob parser. Dumi and Umi use braces only in local build/watch tooling on repository-controlled glob patterns. Docs publishes static assets; the Admin production bundle gate rejects braces. Every audit path and exact Admin build-only version remain checked, and runtime high or critical findings remain blocked. Revisit upstream GHSA-vfj7-8cjw-p6xm before expiry."
     },
     {
       "advisory": "GHSA-c27g-q93r-2cwf",
       "package": "vite",
       "severity": "high",
       "patchedVersions": ">=5.4.9",
-      "scopes": ["web/antd-v6"],
+      "scopes": [
+        "web/antd-v6"
+      ],
       "expiresOn": "2026-11-08",
       "reason": "Umi Max 4.7.7 pins Vite 4 as an inactive alternative bundler. Development uses Utoopack, release uses Webpack, and the release bundle gate rejects Vite at runtime; overriding Umi across the Vite major boundary is not compatible."
     },
@@ -33,7 +29,9 @@
       "package": "vite",
       "severity": "high",
       "patchedVersions": ">=6.4.3",
-      "scopes": ["web/antd-v6"],
+      "scopes": [
+        "web/antd-v6"
+      ],
       "expiresOn": "2026-11-08",
       "reason": "Umi Max 4.7.7 pins Vite 4 as an inactive alternative bundler. Development uses Utoopack, release uses Webpack, and the release bundle gate rejects Vite at runtime; overriding Umi across the Vite major boundary is not compatible."
     },

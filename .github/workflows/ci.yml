@@ -211,6 +211,9 @@ jobs:
             go.work.sum
 
       - name: Verify workspace compatibility contract
+        # Admin/shared changes already run this package in admin-test's ./...
+        # coverage suite. Framework-only changes skip that suite and need it here.
+        if: needs.scope.outputs.scope == 'framework'
         run: go test -count=1 ./admin/compatibility
 
       - name: Verify repository-external Admin consumer

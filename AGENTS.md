@@ -63,8 +63,9 @@ Do not rewrite pushed history to hide intermediate fixes. Follow-up repair commi
 - Every repository change intended for a release, including source code, tests, migrations, generated output, machine-readable contracts, documentation, dependencies, and workflows, must be submitted through a pull request targeting `main` and merged into `main` before release qualification or publication.
 - Direct pushes to `main` and releases from topic branches, pull-request head commits, detached commits, local-only worktrees, or any commit not contained in the current remote `main` history are prohibited.
 - Pre-merge CI, local validation, browser evidence, and release rehearsals may support review, but they are preliminary evidence only and must never authorize a public tag, artifact, package, image, or GitHub Release.
-- A release candidate must be frozen from the exact commit that is already merged into `main`. After fetching the remote, release tooling must fail closed unless the frozen commit is contained in `origin/main`, the checkout matches that commit, and the tracked worktree is clean.
+- A release candidate must be frozen from the exact commit that is already merged into `main`. Once tagged, a newer unrelated main commit does not invalidate successful same-commit evidence; the tagged source must remain in freshly fetched main history. After fetching the remote, release tooling must fail closed unless the frozen commit is contained in `origin/main`, the checkout matches that commit, and the tracked worktree is clean.
 - If any defect or release-gate failure requires a change after freeze, make a follow-up pull request, merge it into `main`, select the new merged `main` commit, and rerun every affected qualification phase. Do not bypass a failed gate with a manual release exception or publish artifacts built from an unmerged repair.
+- Release tags are created only after the same-commit main workflows pass. Tag workflows build and publish their own artifacts; they do not require a separate preview. Official npm publication starts automatically from the Root tag, waits for all same-commit main and component tag workflows to succeed, publishes the existing frontend tarball through OIDC, then updates GitHub Latest. No separate stable-promotion authorization PR or repeated local full suite is required.
 - Release tags are created only after the merged-`main` checks pass. Root,
   Framework, Admin, frontend, package, image, checksum, and stopped-train
   identities are immutable and must never be moved or reused. The sole exception
@@ -195,7 +196,7 @@ Choose checks from the change impact; do not claim checks that were not run.
 | generated contract | drift check after regeneration |
 | workflow | syntax validation plus a real GitHub Actions run when possible |
 
-Use `mss verify --changed` once available. Full verification is required before release but not before every checkpoint commit.
+Use `mss verify --changed` once available. Release publication reuses successful main and tag workflows for the same commit; do not require an additional full local verification, standalone preview, or promotion-authorization PR.
 
 ## Delivery summary
 

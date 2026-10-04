@@ -18,30 +18,30 @@ Docs 是异步、非阻断的网站发布；`docs/v*` 只标识网站部署，�
 GitHub Latest、current stable 或采用状态。
 :::
 
-本清单区分后续完整版本或业务 Thin Host 的代码门禁与生产部署巡检。Foundation 发布方先
-在 PR Head 上完成 `mss verify --changed`、影响计划选中的聚焦检查与受影响页面的内置浏览器验收，
-并通过精简后的 PR 必需检查；合并后，只在精确且 tracked-clean 的 merged-main commit 上执行一次
-`mss verify --all --release-evidence --expect-commit <full-sha>` 并固定自绑定完整报告。唯一 Root preview 只生成和核验
-将被发布的归档、包、SBOM、校验和、portable delivery、Thin Host 组成与多架构镜像，再依次发布组件 Tag；
-Root Tag 触发 Root Release 与后端镜像，单独受审的 stable promotion 从该精确 Root Tag 发布
-官方 npm 并随后推进 GitHub Latest。Docs 从独立文档 Tag 候补发布且不加入上述依赖图。正式
-Distribution Tag 不重复昂贵验证，也不接受 promotion、readiness run ID 或人工环境审批。
+本清单区分 Foundation 发布检查与业务 Thin Host 的生产部署巡检。代码先经 PR 合并到
+`main`，同一完整 commit 的 main 流水线通过后创建对应组件 Tag。Tag 流水线直接构建和
+发布该 commit 的制品；Root Tag 自动启动官方 npm 发布，等待同一 commit 的 main 与
+组件 Tag 流水线成功后，通过 Trusted Publishing 发布 npm，并在身份对账后更新 GitHub
+Latest。新版本不再要求额外 Root preview、手工 stable promotion 或人工环境审批。
+Docs 从独立文档 Tag 发布，不加入上述依赖图。v1.3.7 使用过的旧流程仅保留在历史发布记录中。
 
 ## 一、发布前检查
 
 ### 构建检查
 
-- [ ] PR Head 执行 `mss verify --changed`、影响计划选中的聚焦检查与受影响页面内置浏览器验收；PR 阶段不重复完整发布资格套件
-- [ ] Foundation 根目录在精确 merged-main commit 上执行 `mss verify --all --release-evidence --expect-commit <full-sha>` 成功，报告中的 commit、trackedCleanBefore 和 trackedCleanAfter 均精确
-- [ ] 保存真实外部 Thin Host 检查输出的系统临时证据目录路径，并核验其中脱敏的 `evidence-manifest.json`；需要长期留存时记录目录归档哈希
-- [ ] 完整验证包含 Agent 构建、Admin/Framework race、coverage、vet 与模块元数据、独立 next-Foundation 生成和升级、CLI/MCP/doctor 身份一致性、确定性冲突、第二次升级零变更、eval、依赖审计、release workflow 合同、delivery smoke 与 Playwright E2E
-- [ ] PR、审查记录或仓库外发布台账记录完整 commit、`trackedCleanBefore: true`、`trackedCleanAfter: true`、精确命令、verify report 哈希或摘要及退出结果；本地报告单独存在不授权发布
-- [ ] Codex 内置浏览器在同一精确 commit 完成桌面、窄屏、深链、刷新、控制台和失败网络请求验收
-- [ ] PR 必需的治理、govulncheck、CodeQL 和普通 Admin 单测全部通过；Framework 变更另跑一个普通独立单测；race、coverage、vet/tidy、前端/Thin Host/容器/多数据库重型矩阵不作为 PR 合并门禁
-- [ ] 合并后的 Root preview 仅核验同一 frozen commit 的精确发布制品，且六平台二进制、portable delivery、候选 Thin Host、SBOM、校验和和双架构 OCI 均完整
-- [ ] Admin Tag 流水线在 Framework 已公开后，以 GOWORK=off 和公共 Go Proxy 解析精确 Framework 并通过 app/business 组合测试
-- [ ] 后端和 Admin Web 依赖都精确为同一个已完成公共对账的协调版本，锁文件无漂移
-- [ ] 面向 Distribution 使用者的源文档如有更新，版本与采用状态不误导；公开 Docs 网站部署状态单独记录，不作为本节通过条件
+- [ ] PR 的相关检查通过；改动已合并到 `main`，发布使用同一完整 commit
+- [ ] main 流水线和组件 Tag 流水线均成功，失败时先修复并重新验证，不能用本地记录替代失败的流水线
+- [ ] 受影响页面完成桌面、窄屏、深链和刷新验收，控制台及失败网络请求可解释
+- [ ] 外部 Thin Host 兼容性检查通过，脱敏报告可追溯到对应 commit
+- [ ] Tag 流水线生成的 Root 工具、包、SBOM、校验和及镜像身份完整；正式发布不依赖额外预演制品
+- [ ] Admin Tag 流水线在 Framework 已公开后，以 `GOWORK=off` 和公共 Go Proxy 解析精确 Framework
+- [ ] 后端和 Admin Web 依赖精确为同一个协调版本，锁文件无漂移
+- [ ] Root Tag 启动的 npm 流水线已等到 main 与相关 Tag 流水线成功；npm 版本、`gitHead`、完整性、provenance 及 `latest` 已对账
+- [ ] GitHub Latest 在 npm 对账成功后更新；公共制品对账完成后再更新 `currentStableVersion`
+- [ ] 使用者文档继续以 `currentStableVersion` 为安装与升级基线，`nextPublicVersion` 只用于候选说明；Docs 网站状态单独记录
+
+`mss verify --changed` 与 `mss verify --all` 仍可用于本地定位和预先验证，不能替代上述
+main/Tag 检查结果，也不另设人工发布审批。
 
 ### 核心能力检查
 

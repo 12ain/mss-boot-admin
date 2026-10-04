@@ -257,7 +257,31 @@ test('rejects audit error reports and malformed advisory metadata', () => {
   assert.throws(() => validateAuditReport(duplicate), /duplicate advisory/);
 });
 
-test('accepts pnpm unique-advisory and finding-path metadata semantics', () => {
+test('preserves each release-line record for the same GitHub advisory', () => {
+  const report = validReport();
+  report.advisories[1] = {
+    github_advisory_id: 'GHSA-q2hr-2g5m-vwhr',
+    module_name: 'brace-expansion',
+    severity: 'moderate',
+    patched_versions: '>=1.1.21',
+    vulnerable_versions: '<1.1.21',
+    findings: [{ version: '1.1.18', paths: ['root>tooling>brace-expansion'] }],
+  };
+  report.advisories[2] = {
+    ...report.advisories[1],
+    patched_versions: '>=2.1.7',
+    vulnerable_versions: '>=2.0.0 <2.1.7',
+    findings: [{ version: '2.1.4', paths: ['root>runtime>brace-expansion'] }],
+  };
+  report.metadata.vulnerabilities.high = 0;
+  report.metadata.vulnerabilities.moderate = 2;
+  assert.deepEqual(validateAuditReport(report), Object.values(report.advisories));
+
+  report.advisories[2].findings[0].paths = [];
+  assert.throws(() => validateAuditReport(report), /paths must be a non-empty array/);
+});
+
+test('accepts pnpm advisory-record and finding-path metadata semantics', () => {
   const report = validReport();
   report.advisories[1].findings[0].paths.push('root>build-tool>image-size');
   report.metadata.vulnerabilities.high = 2;
@@ -269,7 +293,7 @@ test('accepts pnpm unique-advisory and finding-path metadata semantics', () => {
   report.metadata.vulnerabilities.high = 3;
   assert.throws(
     () => validateAuditReport(report),
-    /metadata=3, uniqueAdvisories=1, findingPaths=2/,
+    /metadata=3, advisoryRecords=1, findingPaths=2/,
   );
 });
 

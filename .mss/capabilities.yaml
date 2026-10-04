@@ -20,7 +20,7 @@ spec:
         - web/antd-v6/package/business.d.ts
         - docs/docs/admin/avatar-panel-customization.md
       guidance: >-
-        Unreleased: not present in published v1.3.7. A future coordinated distribution
+        Unreleased v1.3.8 candidate: not present in published v1.3.7. A future coordinated distribution
         permits bounded trusted React contributions in the avatar panel, header, and
         footer. Preserve official actions, use optional visibility permissions for
         authenticated content, enforce API authorization on the backend, and qualify
@@ -36,7 +36,7 @@ spec:
         - web/antd-v6/package/business.d.ts
         - docs/docs/admin/workplace-business-content.md
       guidance: >-
-        Unreleased: not present in published v1.3.7. A reviewed future distribution
+        Unreleased v1.3.8 candidate: not present in published v1.3.7. The unpublished v1.3.8 candidate
         permits a bounded business-owned workplace registration module at compile time.
         Preserve the core workplace, declare each visibility permission, keep API
         authorization on the backend, and qualify the installed external Thin Host.
@@ -996,17 +996,15 @@ spec:
         b1fe47a3a83209574e09d53526b122dd2cbc5277, but its Root image and official npm workflows
         failed and Docs was never created. It is an immutable partial train and must not be continued;
         npm recovery uses the exact Trusted Publisher binding and never restores NPM_TOKEN. The
-        reviewed v1.3.7 stable version was built from one exact clean merged-main commit. Pull
-        requests keep only fast required contexts; the complete local `mss verify --all
-        --release-evidence --expect-commit <sha>` result is externally recorded against the full
-        commit and tracked-clean state. The Root candidate workflow then stages exact immutable
-        artifacts instead of replaying broad quality suites. Formal Framework, Admin, frontend, and
-        Root tags created by lwnmengjing publish automatically; the Admin release uniquely resolves
-        the exact public Framework with `GOWORK=off`, while the Root tag starts the image. After
-        separately reviewed promotion authority, official npm is manually dispatched from the exact
-        Root tag and Docs follows independently without gating the Distribution. Reconcile public Go,
-        npm, GitHub Release, images, stable aliases, and installed-consumer probes; reconcile Docs on
-        its own site ledger. Any repair requires a follow-up PR and a new merged-main commit. Core
-        workflows may not mutate an already-public Release or reuse historical evidence. The current
+        reviewed v1.3.7 stable version remains the adopter baseline. The unpublished v1.3.8
+        candidate uses successful same-commit main checks followed by direct tag builds.
+        Framework, Admin, frontend, and Root tags publish in dependency order. The Root tag
+        automatically starts npm publication after all main and matching tag workflows succeed;
+        no separate preview, mandatory complete local suite, or promotion-authorization PR is
+        required. Reuse successful build jobs and the existing frontend tarball, verify npm
+        integrity and OIDC provenance, then update GitHub Latest without allowing a version
+        downgrade. Reconcile current stable in source after publication. Docs deployment follows
+        independently. Source repairs still require a follow-up PR and public core identities
+        remain immutable. The current
         stable website-only Docs Release and tag are the sole replaceable identities: the controlled
         operator deletes both and recreates the same tag, while direct update remains blocked.

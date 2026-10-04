@@ -1,0 +1,150 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-3-8-release
+  displayName: Foundation v1.3.8 release preparation and CI repair
+  description: Prepare the next coordinated distribution after PR 596, repair failed audits, and remove redundant automation without weakening release or security gates.
+  owner: release-engineering
+  labels:
+    target-version: v1.3.8
+    release-status: preparation
+    current-stable: v1.3.7
+spec:
+  problem: >-
+    Main after PR 596 contains new compile-time business contributions and
+    generator fixes, but Docs dependency audit and external Thin Host
+    compatibility fail. The release contracts still target the already
+    published v1.3.7. These failures need reproducible repairs, a complete
+    workflow necessity review, and a separate unpublished v1.3.8 identity.
+  goals:
+    - Repair the exact failed Docs and external-consumer paths with regression evidence.
+    - Review every workflow, remove unnecessary duplicate work, and preserve required checks and publication boundaries.
+    - Align candidate Distribution identities and select all new feature acceptance contracts for v1.3.8.
+    - Keep v1.3.7 as current stable and rollback baseline until successful npm publication and factual reconciliation.
+    - Run clean merged main locally with isolated development data for human acceptance.
+  nonGoals:
+    - Publish tags, packages, or images before the repaired preparation PR is reviewed and merged.
+    - Hide failed checks, bypass main protection, or remove independent security and compatibility coverage.
+    - Modify production data or overwrite unrelated local changes.
+    - Treat local main acceptance or pull-request evidence as final release qualification.
+  actors:
+    - id: maintainer
+      displayName: Maintainer
+    - id: release-operator
+      displayName: Release operator
+    - id: adopter
+      displayName: Thin Host adopter
+  modules:
+    - name: ci-governance
+      kind: infrastructure
+      operation: extend
+      description: Dependency audit, deterministic consumer preparation, workflow triggers, and independent required checks.
+    - name: release-preparation
+      kind: infrastructure
+      operation: extend
+      description: Coordinated version inputs, candidate checksums, qualification selection, and release notes.
+  requirements:
+    - id: repair-ci-causes
+      title: Repair reproducible audit and consumer failures
+      description: Fix the underlying defect while retaining complete vulnerability and clean-source checks.
+      priority: must
+      actor: maintainer
+      module: ci-governance
+      rules:
+        - Record exact failing workflow and commit evidence before editing.
+        - Duplicate vulnerability reports must retain every affected dependency path, version, and policy decision.
+        - Consumer preparation must preserve tracked source and reject unrelated dirty inputs.
+        - Remove only automation whose purpose is redundant or obsolete, with coverage and required-check evidence.
+        - Validate changed workflow syntax and obtain real pull-request Actions results.
+    - id: prepare-coordinated-version
+      title: Bind the complete unpublished v1.3.8 candidate
+      description: Candidate identity changes must not rewrite stable or historical release truth.
+      priority: must
+      actor: release-operator
+      module: release-preparation
+      rules:
+        - Project, lock, Blueprint, Admin Framework dependency, workspace replacement, and frontend candidate version agree on v1.3.8.
+        - Candidate module checksums are generated from committed source by the existing checksum verifier; no placeholder sums or committed local module replacement is allowed.
+        - Qualification selects workplace, avatar and layout contributions, ordinary generated service shapes, and retained presentation regressions.
+        - currentStableVersion and currentStableCommit remain the exact published v1.3.7 identity.
+        - Legacy stablePromotion fields remain disabled for reader compatibility and are not current publication gates.
+        - After reviewed merge, require successful main workflows at the exact release commit; tag workflows build and publish their own artifacts.
+        - The Root tag starts npm publication after all main and matching tag workflows succeed; no separate preview, local full suite, or promotion-authorization PR is required. Docs deployment remains asynchronous.
+  constraints:
+    - id: pr-to-main
+      type: operations
+      statement: All repairs and version changes pass through a reviewed pull request to main before release qualification or publication.
+    - id: preserve-security
+      type: security
+      statement: Authorization, vulnerability policy, CodeQL, provenance, immutable release identities, and protected publication remain enforced.
+    - id: preserve-owned-files
+      type: compatibility
+      statement: Business-owned contributions and local work remain preserved; all runtime additions are compile-time opt-in.
+  acceptance:
+    - id: ci-repair-regression
+      requirement: repair-ci-causes
+      statement: Focused dependency-audit and clean-consumer regressions pass, and the changed workflows retain independently necessary checks.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: node --test tools/security/check-pnpm-audit.test.mjs
+        - type: command
+          value: python3 -m unittest discover -s tools/release -p 'test_*.py'
+        - type: report
+          value: Workflow necessity matrix and exact pull-request Actions run URLs.
+    - id: candidate-contracts
+      requirement: prepare-coordinated-version
+      statement: All candidate identities and generated checksums agree while current stable and disabled promotion remain unchanged.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.8
+        - type: command
+          value: go run ./cmd/mss verify --changed
+    - id: local-human-acceptance
+      requirement: prepare-coordinated-version
+      statement: An isolated local instance runs the recorded main commit, admin login works, and a human can inspect the visible application independently of the automated release gates.
+      level: manual
+      phase: pre-framework
+      required: true
+      evidence:
+        - type: report
+          value: Local main full commit, readiness and login result, and human acceptance; never include the development password in tracked evidence.
+    - id: exact-main-qualification
+      requirement: prepare-coordinated-version
+      statement: The exact clean reviewed merged-main commit has successful main workflows and matching component tag workflows before automatic npm publication.
+      level: e2e
+      phase: post-publication
+      required: true
+      evidence:
+        - type: command
+          value: python3 tools/release/check_release_runs.py --repository mss-boot-io/mss-boot-admin --commit <full-sha> --version v1.3.8 --phase all
+        - type: report
+          value: Exact merged-main source, successful main and component tag workflow URLs, npm immutable identity, and provenance.
+  validation:
+    changed: mss verify --changed
+    all: mss verify --all
+    custom:
+      - python3 -m unittest discover -s tools/release -p 'test_*.py'
+      - python3 tools/release/verify_framework_admin_checksum.py --version v1.3.8
+  rollout:
+    strategy: phased
+    migration: >-
+      Merge the repair and preparation PR after its required checks and review.
+      Wait for the exact main workflows to pass. Publish Framework, Admin,
+      frontend, and Root tags in dependency order from the same commit. Each
+      tag builds its own artifacts; the Root tag also starts the npm workflow,
+      which waits for all main and tag runs, publishes the exact existing
+      frontend tarball through OIDC, verifies npm, then updates GitHub Latest.
+      No independent preview or promotion-authorization PR is required.
+      Reconcile current stable in source after publication. Docs deployment
+      remains independent. These changes add no business database migration.
+    rollback: >-
+      Before publication, repair through a follow-up PR and select a new merged
+      commit. After any immutable core identity exists, never move or reuse it.
+      Adopters retain matching v1.3.7 tools, modules, frontend, configuration,
+      lock, and database backup until v1.3.8 is fully reconciled.

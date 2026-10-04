@@ -4,7 +4,12 @@ All notable changes to the independently released Ant Design 6 application are
 recorded here. Retired frontend history remains available through Git history
 and the root changelog, not as a current release surface.
 
-## Unreleased
+## Unreleased — v1.3.8 preparation
+
+Status: **unpublished candidate**. v1.3.7 remains current stable.
+
+- Build the frontend once in its tag workflow and reuse its exact tarball for
+  automatic npm publication after main and all matching tag workflows succeed.
 
 - Add typed, compile-time Thin Host contributions for the shared avatar panel,
   header, and footer, preserving official account actions and layout controls.

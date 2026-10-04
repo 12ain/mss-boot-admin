@@ -860,6 +860,8 @@ func releaseWorkflowContractTest(root string) command.Spec {
 			"tools.release.test_container_workflow",
 			"tools.release.test_workflow_governance",
 			"tools.release.test_check_release_policy",
+			"tools.release.test_check_release_runs",
+			"tools.release.test_npm_release_workflow",
 			"tools.docs.test_check_current_docs",
 		},
 		Environment: map[string]string{"CI": "true"},

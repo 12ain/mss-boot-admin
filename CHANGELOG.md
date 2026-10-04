@@ -6,6 +6,24 @@ tag namespaces.
 
 ## [Unreleased]
 
+### v1.3.8 preparation (unpublished)
+
+- Prepare synchronized v1.3.8 candidate contracts while preserving v1.3.7 as
+  current stable and rollback baseline.
+- Add compile-time workplace, avatar-panel, header, and footer business
+  contributions; fix immediate successful-login navigation and preserve owned
+  registration files across upgrades.
+- Fix generated service test shapes for optional events, validation, search,
+  and uniqueness; bound frontend compression and Tailwind scanning costs.
+- Repair duplicate-advisory handling and patched Docs dependencies, and keep
+  external consumer preparation from modifying the Foundation workspace.
+- Build release artifacts directly in tag workflows, reuse frontend assets,
+  and automatically publish the existing npm tarball after successful main
+  and matching tag workflows. Remove the separate preview and manual
+  promotion-authorization PR; retain OIDC, immutable identity, and safe retries.
+- Remove the unattended weekly digest and redundant Admin compatibility test.
+
+
 ### Changed
 
 - Define Docs as an asynchronous website-only publication. A `docs/v*` tag now

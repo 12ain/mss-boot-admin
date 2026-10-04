@@ -77,7 +77,9 @@ PY
 
 (
   cd -- "${foundation_root}"
-  go run ./cmd/mss --root "${host_root}" module generate \
+  # The root CLI is standalone. Workspace graph loading can rewrite go.work.sum
+  # before the next external-consumer gate verifies the frozen source checkout.
+  GOWORK=off go run -mod=readonly ./cmd/mss --root "${host_root}" module generate \
     .mss/modules/example-supplier.yaml \
     --write \
     --frontend-target antd-v6 \

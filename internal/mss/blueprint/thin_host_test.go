@@ -175,12 +175,19 @@ func TestApplicationTemplatePinsOneFrontendRuntimeWithoutPatches(t *testing.T) {
 		t.Fatalf("parse Thin Host package template: %v", err)
 	}
 	expected := map[string]string{
-		"react":                      "19.2.8",
-		"react-dom":                  "19.2.8",
-		"antd":                       "6.6.1",
 		"@ant-design/pro-components": "3.1.14-6",
 		"@tanstack/react-query":      "5.101.4",
-		"axios":                      "0.33.0",
+		"antd":                       "6.6.1",
+		"axios":                      "0.34.0",
+		"brace-expansion@1":          "1.1.21",
+		"brace-expansion@2":          "2.1.7",
+		"fast-uri":                   "3.1.7",
+		"js-yaml@3":                  "3.15.2",
+		"js-yaml@4":                  "4.3.2",
+		"piscina@4":                  "4.9.4",
+		"react":                      "19.2.8",
+		"react-dom":                  "19.2.8",
+		"svgo@2":                     "2.8.4",
 	}
 	if len(document.Pnpm.Overrides) != len(expected) {
 		t.Fatalf("Thin Host runtime overrides = %#v, want %#v", document.Pnpm.Overrides, expected)
