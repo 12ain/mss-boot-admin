@@ -6,10 +6,24 @@ tag namespaces.
 
 ## [Unreleased]
 
-### v1.3.8 preparation (unpublished)
+No unreleased changes are recorded.
 
-- Prepare synchronized v1.3.8 candidate contracts while preserving v1.3.7 as
-  current stable and rollback baseline.
+## [v1.3.8] - 2026-10-05
+
+Status: **published / current stable / adoptable**. Framework, Admin, Admin Web,
+Root tools, both images, official npm, npm `latest`, and GitHub Latest reconcile
+at merged-main commit `0e84ee6e038e20e2021f06cae9f2df6c11709257` (PR #599).
+The first incomplete publication at `2c44518c20660e3cfe91daf513809bd4753dbb24`
+was explicitly withdrawn; the one-off cleanup completed in run 37251966942.
+Framework/Admin source bytes and public Go checksums were preserved. The
+replacement frontend package and images carry the final release source identity.
+See the [complete release record](docs/docs/releases/v1-3-8.md) for exact runs,
+checksums, provenance, and rollback. Docs website deployment follows independently.
+
+### Added and fixed
+
+- Publish synchronized v1.3.8 contracts and preserve v1.3.7 as the previous
+  stable and rollback baseline.
 - Add compile-time workplace, avatar-panel, header, and footer business
   contributions; fix immediate successful-login navigation and preserve owned
   registration files across upgrades.
@@ -34,8 +48,8 @@ tag namespaces.
   Admin, Admin Web, Root, images, npm, GitHub Latest, current-stable policy, or
   adopter availability.
 - Reconcile active human documentation, Agent guidance, machine-readable feature
-  memory, ADR status notes, and component changelog labels so v1.3.7 is the sole
-  current stable and adoptable Distribution while older releases remain clearly
+  memory, and adoption entrypoints so v1.3.8 is the current stable and adoptable
+  Distribution while published component documentation bytes and older releases remain
   time-scoped historical evidence.
 - Update GitHub Actions dependencies to pnpm/action-setup 6.1.0,
   softprops/action-gh-release 3.0.3, github/codeql-action 4.38.2,
@@ -54,7 +68,7 @@ tag namespaces.
 
 ## [v1.3.7] - 2026-08-31
 
-Status: **published / current stable / adoptable**. Framework, Admin, Admin Web,
+Status: **published / previous stable / rollback baseline**. Framework, Admin, Admin Web,
 Root tools, backend and frontend images, official npmjs, npm `latest`, GitHub
 Latest, and current-stable policy all reconcile to exact release commit
 `77b53d41092741eac62fa6418c0bdbf87413c7cd`. v1.3.7 completed the
@@ -126,7 +140,8 @@ artifact, npm run `33079323187` failed with `ENEEDAUTH`, and Docs was never
 created. The Root and component identities are already public and immutable;
 the missing Root image, official npm package, and Docs must not be added later.
 At this failure checkpoint v1.3.2 remained the only coordinated stable and
-rollback baseline. v1.3.7 is now the current stable and adoptable Distribution.
+rollback baseline. v1.3.7 subsequently became stable; v1.3.8 is now the current
+stable and adoptable Distribution.
 
 ### Added
 
@@ -650,7 +665,7 @@ complete coordinated train was v1.2.3.
 
 Status: **published / historical**. This section is retained as immutable release
 history. The next complete coordinated train was v1.2.3; v1.3.2 later became
-stable, and the current stable train is v1.3.7.
+stable, followed by v1.3.7; the current stable train is v1.3.8.
 
 ### Changed
 

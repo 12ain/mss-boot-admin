@@ -15,10 +15,10 @@ private GitHub advisories are the preferred intake path.
 ## Supported versions
 
 The active `main` branch and the current stable Complete Admin Distribution are
-supported by default. v1.3.7 is the current stable and rollback baseline. Its
-coordinated Framework, Admin, frontend, Root, tools, images, and official npmjs
+supported by default. v1.3.8 is the current stable version; v1.3.7 is the previous stable and
+rollback baseline. The v1.3.8 coordinated Framework, Admin, frontend, Root, tools, images, and official npmjs
 package were published and reconciled from exact merged-main commit
-`77b53d41092741eac62fa6418c0bdbf87413c7cd`. Docs is an asynchronous website
+`0e84ee6e038e20e2021f06cae9f2df6c11709257`. Docs is an asynchronous website
 publication and never gates stable support or adopter availability; a
 `docs/v*` tag identifies only the site deployment. v1.3.5 and v1.3.6 are
 immutable partial trains and never become complete supported Distributions.
@@ -28,7 +28,7 @@ future candidate, stopped, and rollback identities.
 Preview and release-candidate refs remain immutable evidence but do not receive
 the stable support commitment. Older stable versions are handled case by case.
 
-## v1.3.7 security boundary
+## v1.3.8 security boundary
 
 - Presentation profiles are untrusted, strictly data-only overlays over exact
   compiled capabilities. They cannot define code, HTML, SQL, transport, routes,

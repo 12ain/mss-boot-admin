@@ -22,8 +22,10 @@ RETIRED_WORKFLOWS = (
     "web-editor-usage.yml",
     "web-lockfile-finalize.yml",
     "weekly-digest.yml",
+    "withdraw-failed-v138.yml",
 )
 RETIRED_RELEASE_HELPERS = (
+    "tools/release/withdraw_failed_v138.py",
     "tools/release/resolve_successful_preview.sh",
     "tools/release/verify_readiness_run.sh",
     "tools/release/release_readiness_attestation.py",
@@ -31,6 +33,7 @@ RETIRED_RELEASE_HELPERS = (
     "tools/release/release_qualification_decision.py",
 )
 RETIRED_RELEASE_HELPER_TESTS = (
+    "tools/release/test_withdraw_failed_v138.py",
     "tools/release/test_resolve_successful_preview.py",
     "tools/release/test_release_readiness_attestation.py",
     "tools/release/test_release_phase_evidence.py",
@@ -242,6 +245,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
             ".mss/commands.yaml",
             ".agents/skills/mss-release/SKILL.md",
             ".github/workflows/agent-native-ci.yml",
+            ".github/workflows/ci.yml",
             "tools/compatibility/test-thin-host-external-consumer.sh",
         )
         retired_names = tuple(

@@ -12,8 +12,8 @@ keywords: [admin release checklist smoke regression]
 
 :::warning
 v1.3.5 与 v1.3.6 都已永久停止为不可变部分发布；本清单不能授权补发其缺失制品。
-v1.3.7 已完成 Distribution 公共对账并成为当前稳定版，但本清单不能把后续源码提交冒充为
-v1.3.7 制品。安装与升级从[快速开始](/getting-started)进入。
+v1.3.8 已完成 Distribution 公共对账并成为当前稳定版，但本清单不能把后续源码提交冒充为
+v1.3.8 制品。安装与升级从[快速开始](/getting-started)进入。
 Docs 是异步、非阻断的网站发布；`docs/v*` 只标识网站部署，其缺失或失败不影响组件、npm、
 GitHub Latest、current stable 或采用状态。
 :::
@@ -94,5 +94,5 @@ main/Tag 检查结果，也不另设人工发布审批。
 - [集成测试指南](/admin/integration-test-guide)
 - [v1.3.5 不可变部分发布记录](/releases/v1-3-5)
 - [v1.3.6 不可变部分发布记录](/releases/v1-3-6)
-- [v1.3.7 稳定版说明](/releases/v1-3-7)
-- [v1.3.7 快速开始](/getting-started)
+- [v1.3.8 稳定版说明](/releases/v1-3-8)
+- [v1.3.8 快速开始](/getting-started)

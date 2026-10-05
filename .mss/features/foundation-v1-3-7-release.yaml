@@ -7,13 +7,15 @@ metadata:
     Records the complete package-first Admin Distribution published as v1.3.7
     after v1.3.6 became immutable partial, including explicit reusable-container
     preview mode, credentialless npm Trusted Publishing, reviewed stable aliases,
-    and final current-stable reconciliation.
+    and its historical current-stable reconciliation. Current adoption guidance
+    points to v1.3.8; the requirements and evidence below retain the v1.3.7 checkpoint.
   owner: release-engineering
   labels:
     domain: release-recovery
     target-version: v1.3.7
     release-status: stable
     current-stable: v1.3.7
+    current-stable-now: v1.3.8
     release-commit: 77b53d41092741eac62fa6418c0bdbf87413c7cd
     published-date: "2026-08-31"
 spec:
@@ -26,7 +28,7 @@ spec:
     merged-main commit must prove the Distribution corrections and rerun its
     complete coordinated ledger; Docs follows independently as a website publication.
   goals:
-    - Record v1.3.7 as the current stable Distribution after the complete candidate, npm, and stable-alias ledger succeeded.
+    - Record that v1.3.7 became the current stable Distribution at its publication checkpoint after the complete candidate, npm, and stable-alias ledger succeeded.
     - Separate human-facing guidance from executable Agent contracts and validate each documentation change on its own path without making Docs evidence a Root candidate-preview prerequisite.
     - Make reusable Root-image preview behavior depend on an explicit validated caller input.
     - Bind npm Trusted Publishing exactly to npm-release.yml and npm-auto without a stored npm token.
@@ -66,14 +68,14 @@ spec:
   requirements:
     - id: select-unused-v137
       title: Select and preserve one exact release identity
-      description: v1.3.7 was the sole active candidate and is now current stable; every partial or stable predecessor remains immutable.
+      description: v1.3.7 was the sole active candidate and became current stable at its publication checkpoint; every partial or stable predecessor remains immutable.
       priority: must
       actor: release-operator
       module: release-governance
       rules:
         - Remote Root, Framework, Admin, Admin Web, npmjs, image, Go Proxy, and preview ledgers are checked for conflicting v1.3.7 identities before Distribution qualification and publication; Docs identity is checked only before its own website tag.
         - The source is one clean exact commit already merged into current origin/main through a reviewed pull request.
-        - v1.3.7 is current stable; v1.3.5 and v1.3.6 remain non-adoptable immutable partial trains.
+        - At its publication checkpoint v1.3.7 became current stable; v1.3.5 and v1.3.6 remain non-adoptable immutable partial trains.
         - publicPrereleases remains false, so v1.3.7 uses the exact stable-form version only and no rc tag or public prerelease is created.
         - A failed Distribution gate requires another pull request, another merged-main commit, and a new unused patch version after any immutable v1.3.7 core public identity exists. The sole exception is the Docs website pointer, which may be deleted and recreated under its separate contract without changing Distribution identity.
     - id: pass-root-image-preview-mode
@@ -173,7 +175,7 @@ spec:
   acceptance:
     - id: v137-policy-and-vacancy
       requirement: select-unused-v137
-      statement: Policy records exact v1.3.7 current stable with public prereleases disabled, publication workflows ready, consumed stable promotion disabled, and no conflicting remote identity.
+      statement: At the v1.3.7 checkpoint, policy recorded the exact current stable version with public prereleases disabled, publication workflows ready, consumed stable promotion disabled, and no conflicting remote identity.
       level: contract
       phase: checkpoint
       required: true

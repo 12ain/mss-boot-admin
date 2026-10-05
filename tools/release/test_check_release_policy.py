@@ -24,11 +24,11 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_candidate_and_stable_are_distinct_and_stopped_trains_stay_frozen(self):
+    def test_published_stable_is_exact_and_stopped_trains_stay_frozen(self):
         self.assertEqual(self.policy['nextPublicVersion'], 'v1.3.8')
         self.assertEqual(self.policy['distributionVersion'], 'v1.3.8')
-        self.assertEqual(self.policy['currentStableVersion'], 'v1.3.7')
-        self.assertEqual(self.policy['currentStableCommit'], '77b53d41092741eac62fa6418c0bdbf87413c7cd')
+        self.assertEqual(self.policy['currentStableVersion'], 'v1.3.8')
+        self.assertEqual(self.policy['currentStableCommit'], '0e84ee6e038e20e2021f06cae9f2df6c11709257')
         self.assertEqual(self.policy['releaseTargetState'], 'active')
         self.assertEqual(POLICY.immutable_stopped_trains(self.policy), POLICY.PERMANENTLY_STOPPED_TRAINS)
         for version, train in POLICY.PERMANENTLY_STOPPED_TRAINS.items():
@@ -50,14 +50,14 @@ class ReleasePolicyTest(unittest.TestCase):
             with self.assertRaises(POLICY.PolicyError):
                 POLICY.check_public_ref(self.policy, 'root', wrong, wrong)
         with self.assertRaises(POLICY.PolicyError):
-            POLICY.check_public_ref(self.policy, 'docs', 'v1.3.8', 'docs/v1.3.8')
+            POLICY.check_public_ref(self.policy, 'docs', 'v1.3.7', 'docs/v1.3.7')
 
     def test_publication_switch_is_fail_closed_but_docs_is_independent(self):
         disabled = dict(self.policy, publicationWorkflowsReady=False)
         POLICY.check_public_ref(disabled, 'root', 'v1.3.8', 'v1.3.8', intent='qualify')
         with self.assertRaisesRegex(POLICY.PolicyError, 'remain disabled'):
             POLICY.check_public_ref(disabled, 'root', 'v1.3.8', 'v1.3.8')
-        POLICY.check_public_ref(disabled, 'docs', 'v1.3.7', 'docs/v1.3.7')
+        POLICY.check_public_ref(disabled, 'docs', 'v1.3.8', 'docs/v1.3.8')
 
     def test_legacy_promotion_fields_remain_disabled_and_do_not_gate_npm_publish(self):
         self.assertFalse(self.policy['stablePromotionReady'])
@@ -66,7 +66,7 @@ class ReleasePolicyTest(unittest.TestCase):
         POLICY.check_public_ref(self.policy, 'npm', 'v1.3.8', '@mss-boot-io/admin-web@1.3.8', intent='publish')
         with self.assertRaisesRegex(POLICY.PolicyError, 'promotion remains disabled'):
             POLICY.check_public_ref(self.policy, 'npm', 'v1.3.8', '@mss-boot-io/admin-web@1.3.8', intent='promote', commit='a'*40)
-        legacy = dict(self.policy, stablePromotionReady=True, stablePromotionCommit='a'*40)
+        legacy = dict(self.policy, currentStableVersion='v1.3.7', stablePromotionReady=True, stablePromotionCommit='a'*40)
         POLICY.check_public_ref(legacy, 'npm', 'v1.3.8', '@mss-boot-io/admin-web@1.3.8', intent='promote', commit='a'*40)
         with self.assertRaisesRegex(POLICY.PolicyError, 'exact release commit'):
             POLICY.check_public_ref(legacy, 'npm', 'v1.3.8', '@mss-boot-io/admin-web@1.3.8', intent='promote', commit='b'*40)
@@ -94,11 +94,11 @@ class ReleasePolicyTest(unittest.TestCase):
             ('  docsTagMutable: true', '  docsTagMutable: false'),
             ('  docsTagMutable: true\n', ''),
             ('  publicPrereleases: false', '  publicPrereleases: true'),
-            ('  currentStableVersion: v1.3.7', '  currentStableVersion: v1.3.7-rc.1'),
+            ('  currentStableVersion: v1.3.8', '  currentStableVersion: v1.3.8-rc.1'),
             ('  releaseTargetState: active', '  releaseTargetState: stopped'),
             ('stablePromotionVersion: v1.3.8', 'stablePromotionVersion: v1.3.9'),
             ('stablePromotionCommit: disabled', 'stablePromotionCommit: '+ 'a'*40),
-            ('currentStableCommit: 77b53d41092741eac62fa6418c0bdbf87413c7cd', 'currentStableCommit: short'),
+            ('currentStableCommit: 0e84ee6e038e20e2021f06cae9f2df6c11709257', 'currentStableCommit: short'),
             ('commit: 396f60615cdfa589353b16ef9d3531e249e65432', 'commit: '+ 'a'*40),
             ('        docs: docs/v1.3.5\n', ''),
             ('        framework: mss-boot/v1.3.6', '        framework: mss-boot/v1.3.5'),

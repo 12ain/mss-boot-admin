@@ -1,9 +1,9 @@
 # mss-boot documentation
 
-This source tree records **v1.3.7** as the current coordinated stable release and
+This source tree records **v1.3.8** as the current coordinated stable release and
 **v1.3.5** plus **v1.3.6** as permanently stopped immutable partial releases.
 The component, npm, image, Root Release, stable-alias, and current-stable ledgers
-all resolve to the exact v1.3.7 release commit. Docs remains a separate website
+all resolve to the exact v1.3.8 release commit. Docs remains a separate website
 publication: `docs/v*` identifies a deployed site revision, and a missing,
 failed, or delayed deployment never blocks Distribution components, stable
 aliases, current stable, or adopter availability. Start at
@@ -31,7 +31,7 @@ Within the public site:
 - `docs/admin/`: current Admin configuration, security, and operations;
 - `docs/agent/`: human-readable Agent collaboration and contract navigation;
 - `docs/architecture/`: current architecture summaries;
-- `docs/releases/`: the v1.3.7 stable record, v1.3.6 and v1.3.5 immutable-partial records, and a clearly separated read-only archive.
+- `docs/releases/`: the v1.3.8 current and v1.3.7 previous stable records, v1.3.6 and v1.3.5 immutable-partial records, and a clearly separated read-only archive.
 
 Prompt dumps, one-off plans, test snapshots, and duplicate tutorials are not
 documentation inputs.
@@ -47,6 +47,6 @@ python3 tools/docs/check_current_docs.py
 corepack pnpm@9.15.9 --dir docs build
 ```
 
-The drift check verifies the v1.3.7 stable and v1.3.5/v1.3.6 immutable-partial
+The drift check verifies the v1.3.8 stable and v1.3.5/v1.3.6 immutable-partial
 boundaries, operational onboarding contracts, the human/Agent audience split,
 navigation targets, internal links, archive banners, and ADR status markers.

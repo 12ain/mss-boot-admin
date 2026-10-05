@@ -9,13 +9,13 @@ metadata:
     was created, independent checksum qualification stopped Admin before Release
     publication, and Admin Web, Root, Docs, and npmjs did not complete. The remaining
     goals, requirements, acceptance, and rollout sections preserve historical intent
-    and evidence only; they are not current publication authority. v1.3.7 is the
+    and evidence only; they are not current publication authority. v1.3.8 is the
     current stable Distribution.
   owner: release-engineering
   labels:
     domain: release-governance
     stable-at-preparation: v1.2.3
-    current-stable-now: v1.3.7
+    current-stable-now: v1.3.8
     target-version: v1.3.1
     release-status: immutable-partial
     release-commit: 4830fee162326788732e476a04d24f47b8fd570a

@@ -2,25 +2,30 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: foundation-v1-3-8-release
-  displayName: Foundation v1.3.8 release preparation and CI repair
-  description: Prepare the next coordinated distribution after PR 596, repair failed audits, and remove redundant automation without weakening release or security gates.
+  displayName: Foundation v1.3.8 stable release and CI repair
+  description: Record the complete v1.3.8 distribution after CI repairs and the explicitly authorized withdrawal of its first incomplete publication, preserving all independent security and publication gates.
   owner: release-engineering
   labels:
     target-version: v1.3.8
-    release-status: retracted-recovery
-    current-stable: v1.3.7
+    release-status: stable
+    current-stable: v1.3.8
+    release-commit: 0e84ee6e038e20e2021f06cae9f2df6c11709257
+    published-date: "2026-10-05"
 spec:
   problem: >-
     Main after PR 596 contains new compile-time business contributions and
     generator fixes, but Docs dependency audit and external Thin Host
     compatibility fail. The release contracts still target the already
     published v1.3.7. These failures need reproducible repairs, a complete
-    workflow necessity review, and a separate unpublished v1.3.8 identity.
+    workflow necessity review, and a coordinated v1.3.8 identity. The first
+    incomplete publication was explicitly withdrawn; the reviewed installer
+    repair merged in PR 599 and all main, tag, npm, image, and stable-alias
+    publication results now reconcile to 0e84ee6e038e20e2021f06cae9f2df6c11709257.
   goals:
     - Repair the exact failed Docs and external-consumer paths with regression evidence.
     - Review every workflow, remove unnecessary duplicate work, and preserve required checks and publication boundaries.
     - Align candidate Distribution identities and select all new feature acceptance contracts for v1.3.8.
-    - Keep v1.3.7 as current stable and rollback baseline until successful npm publication and factual reconciliation.
+    - Record v1.3.8 as current stable after successful npm publication and public reconciliation; preserve v1.3.7 as the previous stable and rollback baseline.
     - Run clean merged main locally with isolated development data for human acceptance.
   nonGoals:
     - Publish tags, packages, or images before the repaired preparation PR is reviewed and merged.
@@ -57,6 +62,7 @@ spec:
         - The incomplete v1.3.8 publication at 2c44518c20660e3cfe91daf513809bd4753dbb24 was explicitly retracted by the maintainer; repair through a reviewed PR before recreating only these withdrawn v1.3.8 identities.
         - Preserve the public Framework and Admin source bytes and module checksums during this exceptional same-version recovery; all other public versions remain immutable.
         - Cleanup may delete only the withdrawn publication's exact recorded package integrity and image digests, after its Release objects and tags are absent.
+        - The one-off cleanup completed in run 37251966942 from reviewed main 0e84ee6e038e20e2021f06cae9f2df6c11709257, removing exactly the three withdrawn package version IDs; retire that maintenance entrypoint after use.
     - id: repair-ci-causes
       title: Repair reproducible audit and consumer failures
       description: Fix the underlying defect while retaining complete vulnerability and clean-source checks.
@@ -70,8 +76,8 @@ spec:
         - Remove only automation whose purpose is redundant or obsolete, with coverage and required-check evidence.
         - Validate changed workflow syntax and obtain real pull-request Actions results.
     - id: prepare-coordinated-version
-      title: Bind the complete unpublished v1.3.8 candidate
-      description: Candidate identity changes must not rewrite stable or historical release truth.
+      title: Bind the complete published v1.3.8 distribution
+      description: The published identity and its historical recovery evidence must remain exact and independently traceable.
       priority: must
       actor: release-operator
       module: release-preparation
@@ -79,7 +85,7 @@ spec:
         - Project, lock, Blueprint, Admin Framework dependency, workspace replacement, and frontend candidate version agree on v1.3.8.
         - Candidate module checksums are generated from committed source by the existing checksum verifier; no placeholder sums or committed local module replacement is allowed.
         - Qualification selects workplace, avatar and layout contributions, ordinary generated service shapes, and retained presentation regressions.
-        - currentStableVersion and currentStableCommit remain the exact published v1.3.7 identity.
+        - currentStableVersion is v1.3.8 and currentStableCommit is the exact published 0e84ee6e038e20e2021f06cae9f2df6c11709257; v1.3.7 remains the previous stable rollback identity.
         - Legacy stablePromotion fields remain disabled for reader compatibility and are not current publication gates.
         - After reviewed merge, require successful main workflows at the exact release commit; tag workflows build and publish their own artifacts.
         - The Root tag starts npm publication after all main and matching tag workflows succeed; no separate preview, local full suite, or promotion-authorization PR is required. Docs deployment remains asynchronous.
@@ -118,13 +124,13 @@ spec:
           value: Workflow necessity matrix and exact pull-request Actions run URLs.
     - id: candidate-contracts
       requirement: prepare-coordinated-version
-      statement: All candidate identities and generated checksums agree while current stable and disabled promotion remain unchanged.
+      statement: All published component identities and checksums agree with the exact stable source; legacy promotion authorization remains disabled.
       level: contract
       phase: checkpoint
       required: true
       evidence:
         - type: command
-          value: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.8
+          value: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.8 --source-mode current-stable
         - type: command
           value: go run ./cmd/mss verify --changed
     - id: local-human-acceptance
@@ -147,12 +153,14 @@ spec:
           value: python3 tools/release/check_release_runs.py --repository mss-boot-io/mss-boot-admin --commit <full-sha> --version v1.3.8 --phase all
         - type: report
           value: Exact merged-main source, successful main and component tag workflow URLs, npm immutable identity, and provenance.
+        - type: report
+          value: docs/docs/releases/v1-3-8.md records exact source 0e84ee6e038e20e2021f06cae9f2df6c11709257, successful component runs, immutable package and image identities, npm provenance and latest, and GitHub Latest.
   validation:
     changed: mss verify --changed
     all: mss verify --all
     custom:
       - python3 -m unittest discover -s tools/release -p 'test_*.py'
-      - python3 tools/release/verify_framework_admin_checksum.py --version v1.3.8
+      - python3 tools/release/verify_framework_admin_checksum.py --version v1.3.8 --source-mode current-stable
   rollout:
     strategy: phased
     migration: >-
@@ -168,5 +176,6 @@ spec:
     rollback: >-
       Before publication, repair through a follow-up PR and select a new merged
       commit. After any immutable core identity exists, never move or reuse it.
-      Adopters retain matching v1.3.7 tools, modules, frontend, configuration,
-      lock, and database backup until v1.3.8 is fully reconciled.
+      The explicitly authorized first v1.3.8 withdrawal is recorded above and
+      does not authorize another reuse. Rollback restores matching v1.3.7 tools,
+      modules, frontend, configuration, locks, and the selected database backup.

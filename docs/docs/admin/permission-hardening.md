@@ -10,7 +10,7 @@ keywords: [admin authorization rbac casbin etag session migration]
 
 ## 目标
 
-适用基线：当前稳定版 **mss-boot-admin v1.3.7**。
+适用基线：当前稳定版 **mss-boot-admin v1.3.8**。
 
 Admin 权限链路遵循“后端权威、默认拒绝、最小权限、变更可追踪”四项原则。前端菜单、路由和按钮只负责体验投影，不能替代 API 鉴权。
 

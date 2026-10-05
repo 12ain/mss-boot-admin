@@ -3,7 +3,7 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 installer="${MSS_INSTALLER_TEST_PATH:-${repository_root}/tools/install/install-mss.sh}"
-version="${MSS_INSTALLER_TEST_VERSION:-v1.3.7}"
+version="${MSS_INSTALLER_TEST_VERSION:-v1.3.8}"
 [[ "${version}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
   echo "installer test version must be an exact stable vX.Y.Z" >&2
   exit 2

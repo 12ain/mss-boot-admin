@@ -2,7 +2,7 @@
 title: mss-boot Admin 采用状态
 hero:
   title: mss-boot Admin
-  description: v1.3.7 当前稳定；v1.3.5/v1.3.6 永久停止；Docs 网站独立异步发布
+  description: v1.3.8 当前稳定；v1.3.5/v1.3.6 永久停止；Docs 网站独立异步发布
   actions:
     - text: 查看采用状态
       link: /getting-started
@@ -10,14 +10,14 @@ hero:
       link: /releases/v1-3-5
     - text: 查看 v1.3.6 部分发布
       link: /releases/v1-3-6
-    - text: 查看 v1.3.7 稳定版
-      link: /releases/v1-3-7
+    - text: 查看 v1.3.8 稳定版
+      link: /releases/v1-3-8
     - text: 人类与 Agent 文档边界
       link: /agent
 features:
   - title: Current stable
     emoji: ✅
-    description: v1.3.7 是当前稳定基线；安装、创建与升级从快速开始进入。
+    description: v1.3.8 是当前稳定基线；安装、创建与升级从快速开始进入。
   - title: Immutable partial
     emoji: 🧊
     description: v1.3.5 与 v1.3.6 各自公开了部分组件或 Root 身份，但都有缺失面，不能补发或拼装。
@@ -35,14 +35,14 @@ Release 及工具、官方 npmjs 包、Docs 和后端镜像未发布。已公开
 
 v1.3.6 从 `b1fe47a3a83209574e09d53526b122dd2cbc5277` 公开了 Framework、Admin、
 Admin Web 与 Root Release/工具，但 Root image 和官方 npm 发布失败，Docs 未创建。它也
-是不可续的不可变部分发布，不能用 token、rerun 或 v1.3.7 源码补齐。
+是不可续的不可变部分发布，不能用 token、rerun 或后续版本源码补齐。
 
-v1.3.7 已完成 Framework、Admin、Admin Web、Root、镜像、官方 npm、稳定别名与
+v1.3.8 已完成 Framework、Admin、Admin Web、Root、镜像、官方 npm、稳定别名与
 `currentStableVersion` 对账，是当前可采用的协调稳定发行版。Docs 网站通过 `docs/v*`
 独立异步发布；其缺失、延迟或失败不影响 Distribution 稳定与采用边界。
 :::
 
-当前稳定版本是 **v1.3.7**。需要可执行的安装、创建和升级资料时，请从
+当前稳定版本是 **v1.3.8**。需要可执行的安装、创建和升级资料时，请从
 [快速开始](/getting-started)进入；历史页只用于审计，不是采用入口。
 
 ## 按任务阅读
@@ -55,8 +55,8 @@ v1.3.7 已完成 Framework、Admin、Admin Web、Root、镜像、官方 npm、�
 | 了解 mss-shop 前置条件 | [mss-shop 范本采用状态](/getting-started/mss-shop) |
 | 审计 v1.3.5 事实 | [v1.3.5 不可变部分发布记录](/releases/v1-3-5) |
 | 审计 v1.3.6 事实 | [v1.3.6 不可变部分发布记录](/releases/v1-3-6) |
-| 阅读当前稳定记录 | [v1.3.7 发布说明](/releases/v1-3-7) |
-| 开始采用稳定版 | [v1.3.7 快速开始](/getting-started) |
+| 阅读当前稳定记录 | [v1.3.8 发布说明](/releases/v1-3-8) |
+| 开始采用稳定版 | [v1.3.8 快速开始](/getting-started) |
 | 阅读其他历史版本 | [历史归档](/releases/archive) |
 
 ## 人类文档与 Agent 合同

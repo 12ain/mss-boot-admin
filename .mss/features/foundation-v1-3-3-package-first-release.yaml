@@ -10,11 +10,11 @@ metadata:
     the inherited repository-root LICENSE; Root, Docs, and npmjs did not complete.
     The remaining goals, requirements, acceptance, and rollout sections preserve
     historical intent and evidence only; they are not current publication authority.
-    v1.3.7 is the current stable Distribution.
+    v1.3.8 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: complete-admin-distribution
-    current-stable-now: v1.3.7
+    current-stable-now: v1.3.8
     target-version: v1.3.3
     release-status: immutable-partial
     release-commit: c00591f2a3edd0bec29bb1023bca8a230648107a

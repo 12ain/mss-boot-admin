@@ -349,8 +349,8 @@ func TestDecodeCanonicalFoundationReleasePolicy(t *testing.T) {
 	if policy.Spec.NextPublicVersion != "v1.3.8" || policy.Spec.PublicationWorkflowsReady == nil || !*policy.Spec.PublicationWorkflowsReady {
 		t.Fatalf("canonical recovery target = %#v, want v1.3.8 with publication enabled", policy.Spec)
 	}
-	if policy.Spec.CurrentStableVersion != "v1.3.7" || policy.Spec.CurrentStableCommit != "77b53d41092741eac62fa6418c0bdbf87413c7cd" {
-		t.Fatalf("canonical current stable = %#v, want exact v1.3.7 release", policy.Spec)
+	if policy.Spec.CurrentStableVersion != "v1.3.8" || policy.Spec.CurrentStableCommit != "0e84ee6e038e20e2021f06cae9f2df6c11709257" {
+		t.Fatalf("canonical current stable = %#v, want exact v1.3.8 release", policy.Spec)
 	}
 	stopped, err := validateFoundationStoppedTrains(policy)
 	if err != nil {

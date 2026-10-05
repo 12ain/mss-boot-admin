@@ -7,13 +7,13 @@ metadata:
     Historical contract for the reconciled v1.2.3 train published from
     260d546851c58f7293b30e76b47d40d8e89f52fe. The remaining goals, requirements,
     acceptance, and rollout sections preserve its publication evidence only; they are
-    not current publication authority. v1.3.7 is the current stable Distribution.
+    not current publication authority. v1.3.8 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: release-governance
     stable-at-preparation: v1.1.0
     stable-at-publication: v1.2.3
-    current-stable-now: v1.3.7
+    current-stable-now: v1.3.8
     target-version: v1.2.3
     release-status: historical-stable
     release-commit: 260d546851c58f7293b30e76b47d40d8e89f52fe

@@ -24,10 +24,10 @@ mss verify --all
 
 - `--changed` 是默认日常入口；
 - `--module` 聚焦一个垂直模块；
-- `--all` 是显式完整审计入口；发布资格只在冻结后的精确 merged-main commit 上使用
-  机器合同声明的 release-evidence 模式执行一次。
+- `--all` 是显式完整审计入口，可用于本地诊断和变更预先验证；正式发布依赖同一精确
+  merged-main commit 的 main 与 Tag 流水线结果，不另设重复的本地完整验证门槛。
 
-发布负责人使用的规范入口是：
+需要记录完整本地诊断证据时，可以使用：
 
 ```sh
 mss verify --all --release-evidence --expect-commit <full-sha>
@@ -40,18 +40,22 @@ mss verify --all --release-evidence --expect-commit <full-sha>
 应保留。具体检查选择、工作目录和参数以本地 `.mss/commands.yaml` 与 `mss verify --plan`
 为准，公开页面不复制完整发布矩阵。
 
-## 固定完整验证证据
+## 固定验证与发布证据
 
-发布台账必须记录完整 commit、报告摘要或哈希和退出结果，并证明验证前后 tracked-clean。
-报告单独存在不构成发布授权；它也不替代合并到 `main`、Tag actor、不可变引用、OIDC、
-provenance 和公共制品对账。完整执行顺序由 `mss-release` Skill 与 v1.3.7 Feature 约束，
-避免本站成为另一份会漂移的发布手册。
+验证报告必须记录完整 commit、报告摘要或哈希和退出结果；本地 release-evidence 报告还
+须证明验证前后 tracked-clean。报告单独存在不构成发布授权，也不替代合并到 `main`、
+同提交 main/Tag 检查、Tag actor、不可变引用、OIDC、provenance 和公共制品对账。
+v1.3.8 的执行顺序由 `mss-release` Skill、当前 Feature 与 `.mss/release-policy.yaml`
+约束，避免本站成为另一份会漂移的发布手册。
+
+v1.3.7 曾使用本地完整资格、Root preview 和单独 stable promotion；那是
+[上一稳定版的发布记录](/releases/v1-3-7)，不作为 v1.3.8 的额外发布门槛。
 
 ## 手动扩展资格验证
 
-本地证据通过后，如变更涉及 Agent 安装器、跨平台进程管理、前端包交付或浏览器运行
-环境，可按 `.mss/commands.yaml` 手动运行对应扩展工作流。记录其完整 Head SHA；不得用
-重跑成功掩盖确定性缺陷，也不得以托管工作流替代本地验证或浏览器验收。
+如变更涉及 Agent 安装器、跨平台进程管理、前端包交付或浏览器运行环境，可按
+`.mss/commands.yaml` 手动运行对应扩展工作流补充诊断。记录其完整 Head SHA；不得用
+重跑成功掩盖确定性缺陷。浏览器验收与发布流水线结果各自记录，不能互相冒充。
 
 ## Evals
 
@@ -66,12 +70,12 @@ Eval 衡量 Agent 是否遵守规格、边界、生成幂等、迁移、权限�
 
 ## 基础 CRUD 生成测试的可选配置
 
-本节适用于 PR #593 中尚未发布的 Foundation 源码修复。验收范围由
+v1.3.8 包含 PR #593 的 Foundation 生成器修复。验收范围由
 [`generated-service-test-shapes` Feature](../../../.mss/features/generated-service-test-shapes.yaml)
 定义。模块没有事件、正则校验、字符串长度校验或搜索字段时，生成器应只输出实际使用的
 变量、导入和查询表达式；只有布尔或枚举字段的模块也应能编译并执行后端测试。
 
-当前稳定版 v1.3.7 工具和依赖保持原有行为；采用修复需要等待包含该变更的合格发行版。
+v1.3.7 工具和依赖保留原有行为；采用这项修复应使用协调的 v1.3.8 工具和依赖。
 
 生成的服务测试分别验证分页、搜索和每个筛选条件。分页检查未筛选数据的总数与页面大小；
 搜索根据可搜索字段中的实际值判断匹配记录，不能假定两条记录一定只命中一条。例如两条

@@ -1,13 +1,13 @@
 ---
 title: Agent-native Foundation
 order: 1
-description: v1.3.7 稳定版人机协作、机器合同、确定性工具与运行时产品架构
+description: v1.3.8 稳定版人机协作、机器合同、确定性工具与运行时产品架构
 ---
 
 # Agent-native Foundation
 
 :::warning
-发布状态：**v1.3.7 是当前稳定版**；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。
+发布状态：**v1.3.8 是当前稳定版**；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。
 安装、创建或升级从[快速开始](/getting-started)进入。Docs 网站可异步候补，不阻断组件、
 稳定别名或采用。
 :::
@@ -55,7 +55,7 @@ Foundation 发布或文档发布技能。
 
 ### 执行平面
 
-源码执行平面包含 CLI、MCP 适配、Skills、generator、verifier 和 upgrader。v1.3.7
+源码执行平面包含 CLI、MCP 适配、Skills、generator、verifier 和 upgrader。v1.3.8
 Root Release 以 `mss` 与 `mss-mcp` 作为公共工具；二者复用相同实现和权限边界，写操作
 默认 dry-run、路径受限、拒绝未知覆盖、输出稳定且不发送遥测。v1.3.5 没有发布这些公共
 工具，历史源码能力不能替代 Release 二进制。
@@ -82,9 +82,9 @@ Agent 工具不进入 Admin 运行时。Framework 只提供领域无关基础设
         └── npm: 同版本 Admin Web
 ```
 
-v1.3.7 采用者不需要 Foundation checkout、`go.work` 或本地 `replace`。公共包资格已经
-在外部消费者、`GOWORK=off` 和匿名 npmjs 安装条件下证明；后续版本必须重复同等证据。
-v1.3.5 与 v1.3.6 缺少完整证据链，不能与 v1.3.7 混用。
+v1.3.8 采用者不需要 Foundation checkout、`go.work` 或本地 `replace`。公共包身份、
+独立 Go 解析和 npm 安装说明见[包与导入边界](/getting-started/packages)。
+v1.3.5 与 v1.3.6 缺少完整证据链，不能与 v1.3.8 混用。
 
 ## 变更闭环
 

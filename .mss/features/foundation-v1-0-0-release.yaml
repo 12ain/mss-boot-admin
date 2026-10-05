@@ -7,12 +7,12 @@ metadata:
     Historical contract for the first stable consolidated Foundation, published from
     ee800262c035c5f4242aca1841d077554481d2c4. The remaining goals, requirements,
     acceptance, and rollout sections preserve the v1.0.0 publication evidence only;
-    they are not current publication authority. v1.3.7 is the current stable Distribution.
+    they are not current publication authority. v1.3.8 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: foundation-release
     stable-at-publication: v1.0.0
-    current-stable-now: v1.3.7
+    current-stable-now: v1.3.8
     target-version: v1.0.0
     release-status: historical-stable
     release-commit: ee800262c035c5f4242aca1841d077554481d2c4

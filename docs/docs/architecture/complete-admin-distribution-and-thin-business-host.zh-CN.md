@@ -1,7 +1,7 @@
 ---
 title: Complete Admin Distribution 与 Thin Host
 order: 2
-description: v1.3.7 稳定 Admin 发行架构与 v1.3.5/v1.3.6 永久停止事实
+description: v1.3.8 稳定 Admin 发行架构与 v1.3.5/v1.3.6 永久停止事实
 ---
 
 # Complete Admin Distribution 与 Thin Host
@@ -9,7 +9,7 @@ description: v1.3.7 稳定 Admin 发行架构与 v1.3.5/v1.3.6 永久停止事�
 ## 当前版本状态
 
 :::warning
-发布策略将 **v1.3.7** 定义为当前稳定版本；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。
+发布策略将 **v1.3.8** 定义为当前稳定版本；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。
 安装、创建或升级从[快速开始](/getting-started)进入。Docs 网站可异步候补，不阻断组件、
 稳定别名或采用。
 :::
@@ -24,7 +24,7 @@ description: v1.3.7 稳定 Admin 发行架构与 v1.3.5/v1.3.6 永久停止事�
 | Blueprint | 原计划嵌入 v1.3.5 Root 工具 | 没有可消费的 Release 工具 |
 | Docs | `docs/v1.3.5` | 未创建、未部署 |
 
-所有已公开身份保持不可变，但不能与 v1.3.7、分支头、Foundation 源码、本地替换或其他
+所有已公开身份保持不可变，但不能与 v1.3.8、分支头、Foundation 源码、本地替换或其他
 registry 拼成完整发行。
 
 v1.3.6 从 `b1fe47a3a83209574e09d53526b122dd2cbc5277` 公开了 Framework、Admin、
@@ -33,7 +33,7 @@ Admin Web 与 Root Release/工具，但 Root image 与官方 npm 发布失败，
 
 ## 架构决策
 
-v1.3.7 Admin Distribution 由 Root 工具、Framework、Admin、Admin Web 与 Blueprint
+v1.3.8 Admin Distribution 由 Root 工具、Framework、Admin、Admin Web 与 Blueprint
 使用一个协调版本，同时保留独立发布身份。Docs 源码说明同一稳定基线，但网站发布是
 独立异步链路，不属于 Distribution 的完整性或采用门禁。下游应用是 Thin Host，不是
 Foundation 源码副本。
@@ -70,7 +70,7 @@ route guard 只改善体验，不能替代后端授权。v1.3.5 的概念性包�
 
 ## Blueprint 与三方升级
 
-v1.3.7 Root Release 已把单一 Blueprint 源嵌入工具，并绑定版本、源提交、构建时间和仓库。
+v1.3.8 Root Release 已把单一 Blueprint 源嵌入工具，并绑定版本、源提交、构建时间和仓库。
 创建流程先产生只读计划，再检查路径与未知文件、原子写入受管文件、固定同一完整版本的
 公共依赖，并写入 manifest、lock 与同源快照；第二次生成必须无差异。
 
@@ -108,6 +108,6 @@ commit 的 main 与相关 Tag 流水线成功后，通过 Trusted Publishing 发
 
 ## mss-shop 证明
 
-[mss-shop](/getting-started/mss-shop) 必须等待维护者显式选择的未使用完整版本，再提交
+[mss-shop](/getting-started/mss-shop) 采用 v1.3.8 作为基线时，应先提交
 未修改生成基线并加入通用单租户商城模块。它验证包导入、业务所有权、升级、自动测试和
 Codex 内置浏览器流程，而不是复制 R1Shop 或 Foundation。

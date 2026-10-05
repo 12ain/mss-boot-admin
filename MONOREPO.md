@@ -41,8 +41,8 @@ resumed, completed, or reused. v1.3.6 published its Framework, Admin, Admin Web,
 and Root releases, but its Root image and npm workflows failed and Docs was
 never created.
 
-v1.3.7 is the current stable and adoptable Distribution from exact release
-commit `77b53d41092741eac62fa6418c0bdbf87413c7cd`. Framework, Admin,
+v1.3.8 is the current stable and adoptable Distribution from exact release
+commit `0e84ee6e038e20e2021f06cae9f2df6c11709257`. Framework, Admin,
 Admin Web, Root tools, both images, official npm, npm `latest`, GitHub Latest,
 and current-stable policy are reconciled. Docs is an asynchronous website
 publication; its `docs/v*` tag, credential, workflow, Release, and site state

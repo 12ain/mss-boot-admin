@@ -1,17 +1,17 @@
 ---
-title: v1.3.7 页面展示配置发布治理
+title: v1.3.8 页面展示配置发布治理
 order: 16
 nav:
   order: 1
   title: Admin
-description: v1.3.7 稳定版页面展示配置的草稿、发布、回滚、权限与恢复合同
-keywords: [v1.3.7 v1.3.5 v1.3.6 admin presentation configuration publish rollback recovery etag]
+description: v1.3.8 稳定版页面展示配置的草稿、发布、回滚、权限与恢复合同
+keywords: [v1.3.8 v1.3.5 v1.3.6 admin presentation configuration publish rollback recovery etag]
 ---
 
 # 页面展示配置发布治理
 
 :::warning
-发布状态：**v1.3.7 是当前稳定版**；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。
+发布状态：**v1.3.8 是当前稳定版**；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。
 Docs 网站可通过 `docs/v*` 异步候补，不影响组件、稳定别名或采用。
 :::
 

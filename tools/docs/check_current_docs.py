@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable, NamedTuple
@@ -450,6 +451,7 @@ class ReleaseDocumentationState(NamedTuple):
     release_status: str
     next_public_version: str | None = None
     next_public_status: str | None = None
+    current_stable_commit: str | None = None
 
     @property
     def operational_onboarding_allowed(self) -> bool:
@@ -592,7 +594,114 @@ def release_documentation_state(root: Path) -> ReleaseDocumentationState:
         release_status=matching_features[stable][0][1],
         next_public_version=next_public if next_public != stable else None,
         next_public_status=matching_features[next_public][0][1] if next_public != stable else None,
+        current_stable_commit=(
+            required_value("currentStableCommit", r"[0-9a-f]{40}")
+            if next_public == stable else None
+        ),
     )
+
+
+def current_release_page(version: str) -> Path:
+    return Path("docs/docs/releases") / f"{version.replace('.', '-')}.md"
+
+
+def current_release_paths(paths: Iterable[Path], version: str) -> tuple[Path, ...]:
+    return tuple(current_release_page(version) if path == CURRENT_RELEASE_PAGE else path for path in paths)
+
+
+FROZEN_GENERATED_DOCUMENTATION = frozenset({Path("docs/docs/modules/supplier.md")})
+
+
+def is_frozen_documentation(path: Path) -> bool:
+    # Component-root Markdown ships in the nested Go modules or npm package.
+    # Supplier is a deterministic reference projection of the released template;
+    # updating its version words would require changing that embedded template.
+    return path in FROZEN_GENERATED_DOCUMENTATION or path.suffix == ".md" and path.parent in (
+        Path("admin"), Path("mss-boot"), Path("web/antd-v6")
+    )
+
+
+def frozen_source_documentation_errors(
+    root: Path, state: ReleaseDocumentationState
+) -> list[str]:
+    """After reconciliation, preserve the docs actually shipped in that source.
+
+    A new candidate is allowed to change its own component trees through the
+    normal release path. A factual stable-docs update must not do so merely to
+    replace version words in an already published module or package.
+    """
+    if state.next_public_version is not None:
+        return []
+    source = state.current_stable_commit
+    if source is None or re.fullmatch(r"[0-9a-f]{40}", source) is None:
+        return ["frozen published documentation requires the exact currentStableCommit"]
+    try:
+        kind = subprocess.run(
+            ["git", "cat-file", "-t", source],
+            cwd=root, capture_output=True, check=True, timeout=30,
+        )
+        if kind.stdout.strip() != b"commit":
+            return ["frozen published documentation requires currentStableCommit to identify a commit"]
+        listed = subprocess.run(
+            ["git", "ls-tree", "-r", "-z", "--name-only", source, "--", "admin", "mss-boot", "web/antd-v6",
+             *(path.as_posix() for path in sorted(FROZEN_GENERATED_DOCUMENTATION))],
+            cwd=root, capture_output=True, check=True, timeout=30,
+        )
+        published = {
+            Path(path.decode("utf-8")) for path in listed.stdout.split(b"\0")
+            if path and is_frozen_documentation(Path(path.decode("utf-8")))
+        }
+        current = {
+            path.relative_to(root)
+            for prefix in ("admin", "mss-boot", "web/antd-v6")
+            for path in (root / prefix).glob("*.md")
+        }
+        current.update(path for path in FROZEN_GENERATED_DOCUMENTATION if (root / path).exists())
+        errors = []
+        for path in sorted(published | current):
+            expected = subprocess.run(
+                ["git", "show", f"{source}:{path.as_posix()}"],
+                cwd=root, capture_output=True, timeout=30,
+            )
+            actual = root / path
+            if expected.returncode or not actual.is_file() or actual.read_bytes() != expected.stdout:
+                errors.append(f"{path}: frozen published documentation differs from published source {source}")
+        return errors
+    except (OSError, UnicodeDecodeError, subprocess.SubprocessError) as exc:
+        return [f"cannot verify frozen published documentation at {source}: {exc}"]
+
+
+def previous_stable_release_pages(root: Path, version: str) -> tuple[Path, ...]:
+    pages = set()
+    current_version = tuple(int(part) for part in version.removeprefix("v").split("."))
+    for feature in (root / ".mss/features").glob("*.yaml"):
+        text = feature.read_text(encoding="utf-8")
+        target = re.search(r"(?m)^\s*target-version:\s*['\"]?(v\d+\.\d+\.\d+)['\"]?\s*$", text)
+        if (
+            target
+            and tuple(int(part) for part in target.group(1).removeprefix("v").split(".")) < current_version
+            and re.search(r"(?m)^\s*release-status:\s*['\"]?stable['\"]?\s*$", text)
+        ):
+            pages.add(current_release_page(target.group(1)))
+    return tuple(sorted(pages))
+
+
+def previous_stable_documentation_errors(root: Path, pages: Iterable[Path], version: str) -> list[str]:
+    errors = []
+    for path in pages:
+        if not (root / path).is_file():
+            errors.append(f"missing previous stable release record: {path}")
+            continue
+        banner = "\n".join((root / path).read_text(encoding="utf-8").splitlines()[:24])
+        if version not in banner or "/getting-started" not in banner or not re.search(
+            r"历史稳定|previous stable|回退|rollback", banner, re.IGNORECASE
+        ):
+            errors.append(f"{path}: previous stable record must point to current {version} adoption and rollback context")
+        previous = path.stem.replace("-", ".")
+        claim = unreconciled_adoption_claims(previous)[f"unreconciled {previous} current-stable claim"]
+        if claim.search(banner):
+            errors.append(f"{path}: previous stable record must not claim {previous} is current stable")
+    return errors
 
 
 def distribution_version(root: Path) -> str:
@@ -629,7 +738,7 @@ def active_markdown_paths(root: Path) -> list[Path]:
 
 
 def packaged_stage_claim_paths(root: Path) -> list[Path]:
-    """Return current Markdown that ships in a v1.3.7 immutable artifact.
+    """Return current Markdown that ships in an immutable artifact.
 
     The Root source/module surface includes root guidance and Thin Host
     templates; the nested Go modules ship their top-level governance files;
@@ -678,10 +787,14 @@ def forbidden_content_errors(
     current_stable_version: str | None = None,
     immutable_stopped_versions: tuple[str, ...] = (),
     next_public_version: str | None = None,
+    version_exempt_paths: Iterable[Path] = (),
+    previous_stable_versions: Iterable[str] = (),
 ) -> list[str]:
     errors: list[str] = []
     npm_version = version.removeprefix("v")
     stopped_versions = frozenset(immutable_stopped_versions)
+    exempt = frozenset(version_exempt_paths)
+    previous_versions = frozenset(previous_stable_versions)
     for path in paths:
         absolute = root / path
         if not absolute.is_file():
@@ -691,9 +804,7 @@ def forbidden_content_errors(
             (match.start(), match.end())
             for match in FENCED_CODE_BLOCK.finditer(text)
         ]
-        allowed_historical_versions = HISTORICAL_RELEASE_VERSION_REFERENCES.get(
-            path, set()
-        )
+        allowed_historical_versions = previous_versions | HISTORICAL_RELEASE_VERSION_REFERENCES.get(path, set())
 
         def in_fenced_code(position: int) -> bool:
             return any(start <= position < end for start, end in fenced_ranges)
@@ -709,7 +820,17 @@ def forbidden_content_errors(
             for match in pattern.finditer(text):
                 line = text.count("\n", 0, match.start()) + 1
                 errors.append(f"{path}:{line}: {label} is not allowed in current docs")
-        for match in VERSION_TOKEN.finditer(text):
+        if path not in exempt:
+            for previous in sorted(previous_versions):
+                patterns = unpublished_operational_commands(previous)
+                patterns["previous stable claim"] = unreconciled_adoption_claims(previous)[
+                    f"unreconciled {previous} current-stable claim"
+                ]
+                for pattern in patterns.values():
+                    for match in pattern.finditer(text):
+                        line = text.count("\n", 0, match.start()) + 1
+                        errors.append(f"{path}:{line}: previous stable {previous} cannot be the current adoption target")
+        for match in (() if path in exempt else VERSION_TOKEN.finditer(text)):
             token = match.group(0)
             if (
                 token != version
@@ -728,7 +849,7 @@ def forbidden_content_errors(
                 errors.append(
                     f"{path}:{line}: stale distribution token {token}; expected {version}"
                 )
-        for match in ADMIN_WEB_TOKEN.finditer(text):
+        for match in (() if path in exempt else ADMIN_WEB_TOKEN.finditer(text)):
             token = match.group(1)
             if token != npm_version and not (
                 (
@@ -1149,6 +1270,7 @@ def package_and_container_contract_errors(
     version: str = EXPECTED_DISTRIBUTION_VERSION,
 ) -> list[str]:
     errors: list[str] = []
+    consumer_module = f"mss-boot-io.local/{version.replace('.', '')}-public-consumer"
     packages = root / "docs/docs/getting-started/packages.md"
     if require_adopter_packages and packages.is_file():
         text = packages.read_text(encoding="utf-8")
@@ -1158,7 +1280,7 @@ def package_and_container_contract_errors(
             "set -eu",
             "mktemp -d",
             "trap - EXIT INT TERM",
-            "go mod init mss-boot-io.local/v137-public-consumer",
+            f"go mod init {consumer_module}",
             "$previousGowork",
             "[guid]::NewGuid()",
             "New-Item -ItemType Directory -Path $consumerDir -ErrorAction Stop",
@@ -1169,7 +1291,7 @@ def package_and_container_contract_errors(
         ):
             if marker not in text:
                 errors.append(f"{packages.relative_to(root)}: package contract is missing {marker}")
-        if text.count("go mod init mss-boot-io.local/v137-public-consumer") < 2:
+        if text.count(f"go mod init {consumer_module}") < 2:
             errors.append(
                 f"{packages.relative_to(root)}: POSIX and PowerShell consumers must each initialize an external Go module"
             )
@@ -1376,14 +1498,15 @@ def route_exists(root: Path, route: str) -> bool:
     )
 
 
-def internal_link_errors(root: Path) -> list[str]:
+def internal_link_errors(root: Path, version: str = EXPECTED_DISTRIBUTION_VERSION) -> list[str]:
     errors: list[str] = []
     docs_root = root / DOCS_ROOT
     if not docs_root.is_dir():
         return [f"missing {DOCS_ROOT}"]
     checked = set(docs_root.rglob("*.md"))
     checked.update(
-        root / relative for relative in CORE_LINK_FILES if (root / relative).is_file()
+        root / relative for relative in current_release_paths(CORE_LINK_FILES, version)
+        if (root / relative).is_file()
     )
     for absolute in sorted(checked):
         relative = absolute.relative_to(root)
@@ -1431,19 +1554,19 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         return [str(exc)]
     version = state.distribution_version
 
-    if version != EXPECTED_DISTRIBUTION_VERSION:
-        errors.append(
-            "documentation contract is for "
-            f"{EXPECTED_DISTRIBUTION_VERSION}, release policy declares {version}"
-        )
+    current_page = current_release_page(version)
+    previous_pages = previous_stable_release_pages(root, version)
+    errors.extend(previous_stable_documentation_errors(root, previous_pages, version))
+    errors.extend(frozen_source_documentation_errors(root, state))
 
-    for path in CORE_CURRENT_FILES:
+    for path in current_release_paths(CORE_CURRENT_FILES, version):
         absolute = root / path
         if not absolute.is_file():
             errors.append(f"missing current documentation file: {path}")
             continue
         text = absolute.read_text(encoding="utf-8")
-        if version not in text:
+        frozen = state.next_public_version is None and is_frozen_documentation(path)
+        if not frozen and version not in text:
             errors.append(f"{path}: must name current distribution {version}")
         for stopped_version in state.immutable_stopped_versions:
             if stopped_version not in text:
@@ -1478,7 +1601,11 @@ def collect_errors(root: Path = ROOT) -> list[str]:
 
     release_root = root / "docs/docs/releases"
     actual_release_root = {path.name for path in release_root.glob("*.md")}
-    allowed_release_root = set(ALLOWED_RELEASE_ROOT)
+    allowed_release_root = {
+        "index.md", current_page.name,
+        *(path.name for path in STOPPED_RELEASE_PAGES),
+        *(path.name for path in previous_pages),
+    }
     if state.next_public_version:
         allowed_release_root.add(f"{state.next_public_version.replace('.', '-')}.md")
     if actual_release_root != allowed_release_root:
@@ -1488,6 +1615,9 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         )
 
     active_paths = active_markdown_paths(root)
+    version_exempt_paths = set(previous_pages)
+    if state.next_public_version is None:
+        version_exempt_paths.update(path for path in active_paths if is_frozen_documentation(path))
     errors.extend(
         forbidden_content_errors(
             root,
@@ -1496,6 +1626,8 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             current_stable_version=state.current_stable_version,
             immutable_stopped_versions=state.immutable_stopped_versions,
             next_public_version=state.next_public_version,
+            version_exempt_paths=version_exempt_paths,
+            previous_stable_versions=(path.stem.replace("-", ".") for path in previous_pages),
         )
     )
     errors.extend(candidate_documentation_errors(root, state))
@@ -1503,19 +1635,24 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         absolute_unpublished_claim_errors(
             root,
             version,
-            packaged_stage_claim_paths(root),
+            (
+                path for path in packaged_stage_claim_paths(root)
+                if path not in previous_pages and not (
+                    state.next_public_version is None and is_frozen_documentation(path)
+                )
+            ),
         )
     )
     errors.extend(stopped_release_history_errors(root, state))
 
-    partial_status_set = frozenset(PARTIAL_RELEASE_STATUS_FILES)
+    partial_status_set = frozenset(current_release_paths(PARTIAL_RELEASE_STATUS_FILES, version))
     if state.operational_onboarding_allowed:
         errors.extend(bootstrap_password_errors(root))
         errors.extend(first_login_errors(root))
-        errors.extend(upgrade_contract_errors(root, version=version))
+        errors.extend(upgrade_contract_errors(root, current_release_paths(UPGRADE_CONTRACT_FILES, version), version=version))
         errors.extend(mcp_contract_errors(root))
     else:
-        errors.extend(partial_release_semantic_errors(root, state))
+        errors.extend(partial_release_semantic_errors(root, state, status_paths=partial_status_set))
         errors.extend(partial_release_operational_errors(root, state))
         errors.extend(
             bootstrap_password_errors(
@@ -1532,7 +1669,7 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         errors.extend(
             upgrade_contract_errors(
                 root,
-                (path for path in UPGRADE_CONTRACT_FILES if path not in partial_status_set),
+                (path for path in current_release_paths(UPGRADE_CONTRACT_FILES, version) if path not in partial_status_set),
                 version=version,
             )
         )
@@ -1696,7 +1833,7 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         if marker not in root_readme or marker not in zh_readme:
             errors.append(f"root README language pair is missing shared marker: {marker}")
 
-    errors.extend(internal_link_errors(root))
+    errors.extend(internal_link_errors(root, version))
     return sorted(set(errors))
 
 

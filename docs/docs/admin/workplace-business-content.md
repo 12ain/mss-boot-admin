@@ -1,10 +1,10 @@
 # Business content on the workplace
 
-Status: proposed compile-time extension; not available in published v1.3.7.
+Available in the v1.3.8 Admin Distribution as a compile-time extension. The previous stable v1.3.7 does not expose this interface.
 
 For other shared interface regions, see [avatar, header, and footer customization](./avatar-panel-customization.md).
 
-Foundation keeps ownership of `/workplace`, its greeting, quick links, monitoring, authentication and layout. After adopting a coordinated distribution containing this extension, add the business-owned `web/src/business/workplace.ts`:
+Foundation keeps ownership of `/workplace`, its greeting, quick links, monitoring, authentication and layout. After adopting the matching v1.3.8 components, add the business-owned `web/src/business/workplace.ts`:
 
 ```ts
 import { defineWorkplaceContributions } from '@mss-boot-io/admin-web/runtime';

@@ -9,12 +9,12 @@ metadata:
     Admin Web publication stopped after tag creation and Root did not publish.
     The remaining goals, requirements, acceptance, and rollout sections preserve
     historical intent and evidence only; they are not current publication authority.
-    v1.3.7 is the current stable Distribution.
+    v1.3.8 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: release-governance
     stable-at-preparation: v1.1.0
-    current-stable-now: v1.3.7
+    current-stable-now: v1.3.8
     target-version: v1.2.0
     release-status: immutable-partial
     release-commit: c0b4b4d7888a67931951f0b40198d98614e979af

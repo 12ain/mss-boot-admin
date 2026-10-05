@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -110,6 +111,183 @@ class CurrentDocsContractTest(unittest.TestCase):
                     )
                     with self.assertRaisesRegex(ValueError, "immutableStoppedTrains"):
                         check_current_docs.release_documentation_state(root)
+
+    def test_reconciled_stable_requires_full_published_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            policy = root / ".mss/release-policy.yaml"
+            feature = root / ".mss/features/release.yaml"
+            feature.parent.mkdir(parents=True)
+            text = (
+                "spec:\n"
+                "  currentStableVersion: v1.3.8\n"
+                "  distributionVersion: v1.3.8\n"
+                "  nextPublicVersion: v1.3.8\n"
+                "  immutableStoppedTrains:\n    - version: v1.3.5\n"
+                "  publicationWorkflowsReady: true\n"
+            )
+            policy.write_text(text, encoding="utf-8")
+            feature.write_text(
+                "metadata:\n  labels:\n    target-version: v1.3.8\n    release-status: stable\n",
+                encoding="utf-8",
+            )
+            for commit_line in ("", "  currentStableCommit: deadbeef\n"):
+                policy.write_text(text + commit_line, encoding="utf-8")
+                with self.subTest(commit_line=commit_line):
+                    with self.assertRaisesRegex(ValueError, "currentStableCommit"):
+                        check_current_docs.release_documentation_state(root)
+            source = "a" * 40
+            policy.write_text(text + f"  currentStableCommit: {source}\n", encoding="utf-8")
+            state = check_current_docs.release_documentation_state(root)
+            self.assertEqual(state.distribution_version, "v1.3.8")
+            self.assertEqual(state.current_stable_commit, source)
+            self.assertIsNone(state.next_public_version)
+
+    def test_frozen_component_docs_match_real_published_git_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+
+            def git(*arguments: str) -> str:
+                return subprocess.run(
+                    ["git", *arguments], cwd=root, capture_output=True, text=True,
+                    check=True, timeout=30,
+                ).stdout.strip()
+
+            git("init", "-q")
+            paths = (
+                Path("admin/README.md"), Path("mss-boot/README.md"),
+                Path("mss-boot/CHANGELOG.md"), Path("web/antd-v6/README.md"),
+                Path("docs/docs/modules/supplier.md"),
+            )
+            for path in paths:
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text("Published source said current stable is v1.3.7.\n", encoding="utf-8")
+            git("add", ".")
+            git("-c", "user.name=Docs test", "-c", "user.email=docs@example.invalid", "commit", "-qm", "published source")
+            source = git("rev-parse", "HEAD")
+            state = check_current_docs.ReleaseDocumentationState(
+                distribution_version="v1.3.8", current_stable_version="v1.3.8",
+                immutable_stopped_versions=("v1.3.5", "v1.3.6"),
+                publication_workflows_ready=True, release_status="stable",
+                current_stable_commit=source,
+            )
+            self.assertEqual(check_current_docs.frozen_source_documentation_errors(root, state), [])
+            self.assertTrue(check_current_docs.is_frozen_documentation(Path("docs/docs/modules/supplier.md")))
+            self.assertFalse(check_current_docs.is_frozen_documentation(Path("docs/docs/modules/new-module.md")))
+            self.assertFalse(check_current_docs.is_frozen_documentation(Path("docs/docs/getting-started/index.md")))
+            for path in paths:
+                page = root / path
+                original = page.read_bytes()
+                with self.subTest(path=path, mutation="edit"):
+                    page.write_text("Updated current stable is v1.3.8.\n", encoding="utf-8")
+                    self.assertIn(str(path), "\n".join(check_current_docs.frozen_source_documentation_errors(root, state)))
+                with self.subTest(path=path, mutation="delete"):
+                    page.unlink()
+                    self.assertIn(str(path), "\n".join(check_current_docs.frozen_source_documentation_errors(root, state)))
+                page.write_bytes(original)
+            added = root / "admin/CHANGELOG.md"
+            added.write_text("New unshipped documentation\n", encoding="utf-8")
+            self.assertIn("admin/CHANGELOG.md", "\n".join(check_current_docs.frozen_source_documentation_errors(root, state)))
+            self.assertEqual(
+                check_current_docs.frozen_source_documentation_errors(
+                    root, state._replace(next_public_version="v1.3.9", next_public_status="preparation")
+                ), [],
+            )
+            added.unlink()
+            for invalid in (None, "deadbeef", "b" * 40, git("rev-parse", "HEAD^{tree}")):
+                with self.subTest(invalid=invalid):
+                    self.assertTrue(check_current_docs.frozen_source_documentation_errors(
+                        root, state._replace(current_stable_commit=invalid)
+                    ))
+
+    def test_frozen_versions_keep_security_and_source_command_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            relative = Path("admin/README.md")
+            page = root / relative
+            page.parent.mkdir()
+            content = (
+                "go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7\n"
+                "pnpm add @mss-boot-io/admin-web@1.3.7\n"
+            )
+            page.write_text(content, encoding="utf-8")
+            self.assertEqual(check_current_docs.forbidden_content_errors(
+                root, "v1.3.8", [relative], version_exempt_paths=[relative]
+            ), [])
+            page.write_text(content + "password: unsafe-example\ngo run ./cmd/mss setup\nmss-pr\n", encoding="utf-8")
+            errors = "\n".join(check_current_docs.forbidden_content_errors(
+                root, "v1.3.8", [relative], version_exempt_paths=[relative]
+            ))
+            self.assertIn("literal credential example", errors)
+            self.assertIn("source-only mss invocation", errors)
+            self.assertIn("internal mss-pr", errors)
+            self.assertNotIn("stale distribution", errors)
+
+    def test_previous_stable_page_is_retained_with_current_adoption_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            features = root / ".mss/features"
+            features.mkdir(parents=True)
+            for version, status in (("v1.3.7", "stable"), ("v1.3.6", "immutable-partial"), ("v1.3.9", "stable")):
+                (features / f"{version}.yaml").write_text(
+                    f"metadata:\n  labels:\n    target-version: '{version}'\n    release-status: {status}\n",
+                    encoding="utf-8",
+                )
+                page = root / check_current_docs.current_release_page(version)
+                page.parent.mkdir(parents=True, exist_ok=True)
+                page.write_text(f"{version} historical record\n", encoding="utf-8")
+            relative = Path("docs/docs/releases/v1-3-7.md")
+            self.assertEqual(check_current_docs.previous_stable_release_pages(root, "v1.3.8"), (relative,))
+            self.assertTrue(check_current_docs.previous_stable_documentation_errors(root, [relative], "v1.3.8"))
+            (root / relative).unlink()
+            self.assertEqual(check_current_docs.previous_stable_release_pages(root, "v1.3.8"), (relative,))
+            self.assertIn("missing previous stable release record", "\n".join(
+                check_current_docs.previous_stable_documentation_errors(root, [relative], "v1.3.8")
+            ))
+            banner = "v1.3.7 previous stable; rollback baseline. Current v1.3.8 [adoption](/getting-started).\n"
+            content = banner + "```sh\nmss upgrade admin v1.3.7\npnpm add @mss-boot-io/admin-web@1.3.7\n```\n"
+            (root / relative).write_text(content, encoding="utf-8")
+            self.assertEqual(check_current_docs.previous_stable_documentation_errors(root, [relative], "v1.3.8"), [])
+            self.assertEqual(check_current_docs.forbidden_content_errors(
+                root, "v1.3.8", [relative], version_exempt_paths=[relative]
+            ), [])
+            (root / relative).write_text(banner + "v1.3.7 is current stable\n", encoding="utf-8")
+            self.assertIn("must not claim", "\n".join(check_current_docs.previous_stable_documentation_errors(root, [relative], "v1.3.8")))
+            current = root / "docs/docs/getting-started/index.md"
+            current.parent.mkdir(parents=True)
+            current.write_text(content, encoding="utf-8")
+            self.assertIn("stale distribution", "\n".join(check_current_docs.forbidden_content_errors(
+                root, "v1.3.8", [current.relative_to(root)], version_exempt_paths=[relative]
+            )))
+            for paths in (check_current_docs.CORE_CURRENT_FILES, check_current_docs.CORE_LINK_FILES,
+                          check_current_docs.PARTIAL_RELEASE_STATUS_FILES, check_current_docs.UPGRADE_CONTRACT_FILES):
+                mapped = check_current_docs.current_release_paths(paths, "v1.3.8")
+                self.assertIn(Path("docs/docs/releases/v1-3-8.md"), mapped)
+                self.assertNotIn(relative, mapped)
+
+    def test_previous_stable_navigation_does_not_allow_old_adoption(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            relative = Path("docs/docs/releases/index.md")
+            page = root / relative
+            page.parent.mkdir(parents=True)
+            navigation = "[v1.3.7 previous stable / rollback](/releases/v1-3-7)\n"
+            page.write_text(navigation, encoding="utf-8")
+            self.assertEqual(check_current_docs.forbidden_content_errors(
+                root, "v1.3.8", [relative], previous_stable_versions=["v1.3.7"]
+            ), [])
+            for invalid in (
+                "```sh\nmss upgrade admin v1.3.7\n```\n",
+                "Install with `pnpm add @mss-boot-io/admin-web@1.3.7`.\n",
+                "The current stable is v1.3.7.\n",
+            ):
+                with self.subTest(invalid=invalid):
+                    page.write_text(navigation + invalid, encoding="utf-8")
+                    self.assertIn("cannot be the current adoption target", "\n".join(
+                        check_current_docs.forbidden_content_errors(
+                            root, "v1.3.8", [relative], previous_stable_versions=["v1.3.7"]
+                        )
+                    ))
 
     def test_candidate_record_preserves_stable_adoption_and_rejects_candidate_install(self) -> None:
         state = check_current_docs.ReleaseDocumentationState(

@@ -22,7 +22,7 @@ EXPECTED_FRAMEWORK_SUM = "h1:hrOY8jTFYQEemuDSg1gnh04adVpPBhRb0CMD3Du9ClE="
 EXPECTED_FRAMEWORK_GO_MOD_SUM = "h1:fzCEucxACSds872sl1uW8yQhZJ4MszLSpzcau1lQNWo="
 EXPECTED_ADMIN_SUM = "h1:hGa6efAxUx4jdwPVoSolZb1UZ4FPEe0eTVKMxl/36cI="
 EXPECTED_ADMIN_GO_MOD_SUM = "h1:6t+dNvWg4JUQkqemjAICId72w918VZ8pRMbXo2xWahY="
-EXPECTED_RELEASE_COMMIT = "77b53d41092741eac62fa6418c0bdbf87413c7cd"
+EXPECTED_RELEASE_COMMIT = "0e84ee6e038e20e2021f06cae9f2df6c11709257"
 
 
 class FrameworkAdminChecksumTest(unittest.TestCase):
@@ -308,7 +308,7 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
                         "--root",
                         str(REPOSITORY_ROOT),
                         "--version",
-                        "v1.3.7",
+                        "v1.3.8",
                         "--source-mode",
                         source_mode,
                         "--write",

@@ -7,7 +7,7 @@
 - Detailed architecture: `docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md`
 - Continued by: `.mss/features/foundation-v1-3-3-package-first-release.yaml`, which removes the remaining Foundation-checkout requirement for downstream creation and upgrade
 
-Current release note: v1.3.7 is the current stable and adoptable Distribution.
+Current release note: v1.3.8 is the current stable and adoptable Distribution.
 The v1.3.0-rc.6 and v1.3.2 statements below record their historical release
 checkpoints and are not current adoption guidance.
 
@@ -52,7 +52,7 @@ publication. The v1.3.2 first package publication used a short-lived protected b
 the completed security handoff then bound npm Trusted Publishing OIDC to
 `mss-boot-io/mss-boot-admin`, `npm-release.yml`, and the then-current `release-v6`
 environment, removed the GitHub secret, and revoked the npm-side token. The
-current v1.3.7 binding uses environment `npm-auto`; publication remains OIDC-only
+current v1.3.8 binding uses environment `npm-auto`; publication remains OIDC-only
 with no token fallback.
 
 `management-system` becomes the single recommended thin-host Blueprint. It generates application glue,
@@ -108,7 +108,7 @@ immutable preview evidence. The `v1.3.0` and `v1.3.1` trains are immutable compo
 The coordinated `v1.3.2` train completed through the protected Framework -> Admin -> Frontend -> Root ->
 Docs -> npmjs sequence from exact merged-main commit
 `635fbb03a82976941e527d8ac1000fec0624abac` and became current stable at that historical checkpoint.
-It is now previous-stable evidence; v1.3.7 is current stable. Any later release
+It is now previous-stable evidence; v1.3.8 is current stable. Any later release
 remains restricted to a new exact merged-main commit; the final npmjs step republishes the already
 qualified frontend tarball without rebuilding.
 
@@ -168,8 +168,8 @@ Downstream repositories become substantially smaller and upgrades operate on thi
 product sources. In exchange, the complete Admin application entrypoint, business module API, frontend
 exports, and coordinated version become compatibility surfaces that require external-consumer gates.
 
-The implementation, RC6 preview, historical stable v1.3.2 release, and current stable v1.3.7 release have passed the repository-external Supplier
-host gate: GOWORK=off backend validation, public Go and npm consumption, single-runtime analysis,
+At their respective checkpoints, the implementation, RC6 preview, and historical stable v1.3.2
+and v1.3.7 releases passed the repository-external Supplier host gate: GOWORK=off backend validation, public Go and npm consumption, single-runtime analysis,
 deterministic generation and upgrade tests, and the required browser E2E described by the Feature
 contract. The incomplete v1.3.0 and v1.3.1 attempts remain audit evidence only and must not be
 continued. The next measurable maturity step is to repeat the full specification, generation, external

@@ -17,7 +17,7 @@ $RepositoryRoot = [System.IO.Path]::GetFullPath(
 )
 $GitSafeRoot = $RepositoryRoot.Replace('\', '/')
 $Installer = Join-Path $PSScriptRoot 'install-mss.ps1'
-$Version = 'v1.3.7'
+$Version = 'v1.3.8'
 $UsePrebuilt = -not [string]::IsNullOrWhiteSpace($MssFixture) -or -not [string]::IsNullOrWhiteSpace($McpFixture)
 if ($UsePrebuilt) {
     if (

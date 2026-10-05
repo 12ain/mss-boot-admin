@@ -10,7 +10,7 @@ must describe the same behavior.
 
 Release-state baseline for this source-only contributor guide: v1.3.5 and
 v1.3.6 are permanently stopped immutable partial trains. The reviewed release
-policy is authoritative for the current stable version. v1.3.7 has completed
+policy is authoritative for the current stable version. v1.3.8 has completed
 its Distribution surfaces, stable aliases, and final current-stable policy
 reconciliation and is adoptable. Docs is asynchronous and non-blocking: its `docs/v*`
 tag identifies only website publication, and its absence or failure never gates

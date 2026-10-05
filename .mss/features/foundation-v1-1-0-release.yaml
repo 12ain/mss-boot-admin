@@ -7,13 +7,13 @@ metadata:
     Historical contract for the stable v1.1.0 train published from
     09725430f3e4d1d5622511f6063d8c7cbee3f5cb. The remaining goals, requirements,
     acceptance, and rollout sections preserve its development and publication evidence only;
-    they are not current publication authority. v1.3.7 is the current stable Distribution.
+    they are not current publication authority. v1.3.8 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: release-governance
     stable-at-preparation: v1.0.0
     stable-at-publication: v1.1.0
-    current-stable-now: v1.3.7
+    current-stable-now: v1.3.8
     target-version: v1.1.0
     release-status: historical-stable
     release-commit: 09725430f3e4d1d5622511f6063d8c7cbee3f5cb
