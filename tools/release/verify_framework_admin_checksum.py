@@ -578,14 +578,34 @@ def _updated_go_sum(
             key = fields[1]
             matches[key] += 1
             updated.append(f"{module} {key} {replacements[key]}")
+        elif len(fields) == 3 and fields[0] == module:
+            # These coordinated direct dependencies have one exact version.
+            # Retaining the previous release leaves metadata that go mod tidy
+            # removes; history still preserves its original immutable sums.
+            continue
         else:
             updated.append(line)
     # A new candidate version has no recorded sums yet. Insert only the two
     # values calculated from the committed module tree; never relabel a stable
     # version's checksum or accept a partial/duplicated candidate pair.
     if all(count == 0 for count in matches.values()):
-        updated.extend(f"{module} {key} {value}" for key, value in replacements.items())
-        return ("\n".join(sorted(updated)) + "\n").encode("utf-8")
+        if not VERSION_RE.fullmatch(version):
+            raise ChecksumContractError(f"{label} candidate must be a stable semantic version")
+        insertion = len(updated)
+        for index, line in enumerate(updated):
+            fields = line.split()
+            if len(fields) != 3:
+                continue
+            if fields[0] > module:
+                insertion = index
+                break
+        # Go sorts versions semantically (v1.9 before v1.10), not lexically.
+        # Insert the sole coordinated version without rearranging any
+        # unrelated checksum entries or their prerelease/build suffixes.
+        updated[insertion:insertion] = [
+            f"{module} {key} {value}" for key, value in replacements.items()
+        ]
+        return ("\n".join(updated) + "\n").encode("utf-8")
     for key, count in matches.items():
         if count != 1:
             raise ChecksumContractError(

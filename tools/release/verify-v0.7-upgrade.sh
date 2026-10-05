@@ -74,6 +74,7 @@ fi
 readonly initial_worktree_dirty
 if [[ "${evidence_mode}" == "1" && "${initial_worktree_dirty}" == "true" ]]; then
   printf 'release evidence mode refuses a dirty working tree\n' >&2
+  printf '%s\n' "${initial_worktree_status}" >&2
   exit 1
 fi
 
@@ -110,6 +111,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
+candidate_build_gowork="${candidate_gowork}"
+if [[ "${candidate_dependency_mode}" == "repository-workspace" ]]; then
+  # Go may add transitive checksums even for readonly workspace builds. Keep
+  # those writes in the rehearsal directory while resolving the same sources.
+  candidate_build_gowork="${work_dir}/go.work"
+  python3 "${repo_root}/tools/release/prepare-isolated-go-workspace.py" \
+    --source "${candidate_gowork}" --target "${candidate_build_gowork}"
+fi
+readonly candidate_build_gowork
+
 mkdir -p "${work_dir}/baseline" "${work_dir}/bin"
 git archive "${baseline_commit}" | tar -x -C "${work_dir}/baseline"
 python3 "${repo_root}/tools/release/prepare-v0-7-fixture.py" \
@@ -122,7 +133,7 @@ python3 "${repo_root}/tools/release/prepare-v0-7-fixture.py" \
 )
 (
   cd "${repo_root}/admin"
-  GOWORK="${candidate_gowork}" go build -trimpath -o "${work_dir}/bin/admin-current" .
+  GOWORK="${candidate_build_gowork}" go build -trimpath -o "${work_dir}/bin/admin-current" .
 )
 
 prepare_runtime() {
@@ -184,7 +195,7 @@ run_release_upgrade_assertion() {
       MSS_RELEASE_UPGRADE_SQLITE_DSN="${sqlite_dsn}" \
       MSS_RELEASE_UPGRADE_MYSQL_DSN="${mysql_dsn}" \
       MSS_RELEASE_UPGRADE_POSTGRES_DSN="${postgres_dsn}" \
-      GOWORK="${candidate_gowork}" go test ./cmd/migrate/migration/system \
+      GOWORK="${candidate_build_gowork}" go test ./cmd/migrate/migration/system \
         -run "^${test_name}$" -count=1
   )
 }
@@ -200,7 +211,7 @@ run_release_upgrade_assertion TestV07UpgradeStateIntegration
 
 sqlite_module_version="$(
   cd "${repo_root}/admin"
-  GOWORK="${candidate_gowork}" go list -m -f '{{.Version}}' modernc.org/sqlite
+  GOWORK="${candidate_build_gowork}" go list -m -f '{{.Version}}' modernc.org/sqlite
 )"
 readonly sqlite_module_version
 final_candidate_commit="$(git -C "${repo_root}" rev-parse HEAD)"
@@ -218,6 +229,7 @@ fi
 readonly final_worktree_dirty
 if [[ "${evidence_mode}" == "1" && "${final_worktree_dirty}" == "true" ]]; then
   printf 'release evidence mode detected a dirty working tree after the rehearsal\n' >&2
+  printf '%s\n' "${final_worktree_status}" >&2
   exit 1
 fi
 python3 -c '

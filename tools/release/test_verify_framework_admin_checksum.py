@@ -20,7 +20,7 @@ SPEC.loader.exec_module(CHECKSUM)
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_FRAMEWORK_SUM = "h1:hrOY8jTFYQEemuDSg1gnh04adVpPBhRb0CMD3Du9ClE="
 EXPECTED_FRAMEWORK_GO_MOD_SUM = "h1:fzCEucxACSds872sl1uW8yQhZJ4MszLSpzcau1lQNWo="
-EXPECTED_ADMIN_SUM = "h1:lDdGzQ+LZLKs+/Q+dV7bftmO172Vjps6amlASIqi8M4="
+EXPECTED_ADMIN_SUM = "h1:hGa6efAxUx4jdwPVoSolZb1UZ4FPEe0eTVKMxl/36cI="
 EXPECTED_ADMIN_GO_MOD_SUM = "h1:6t+dNvWg4JUQkqemjAICId72w918VZ8pRMbXo2xWahY="
 EXPECTED_RELEASE_COMMIT = "77b53d41092741eac62fa6418c0bdbf87413c7cd"
 
@@ -130,7 +130,10 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
             first = CHECKSUM.refresh_repository_metadata(root, version="v1.3.4", go_command=os.environ.get("MSS_TEST_GO", "go"))
             updated = (root / "admin/go.sum").read_text()
             for line in original.splitlines():
-                self.assertIn(line, updated)
+                if line.startswith(CHECKSUM.FRAMEWORK_MODULE + " "):
+                    self.assertNotIn(line, updated)
+                else:
+                    self.assertIn(line, updated)
             self.assertIn(f"{CHECKSUM.FRAMEWORK_MODULE} v1.3.4 h1:", updated)
             self._git(root, "add", *first["updatedFiles"])
             self._git(root, "commit", "-qm", "record computed checksums")
@@ -144,6 +147,31 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
         for raw in (f"{module} v1.3.4 h1:old\n", f"{module} v1.3.4 h1:a\n{module} v1.3.4 h1:b\n{module} v1.3.4/go.mod h1:c\n"):
             with self.subTest(raw=raw), self.assertRaises(CHECKSUM.ChecksumContractError):
                 CHECKSUM._updated_go_sum(raw.encode(), module=module, version="v1.3.4", module_sum="h1:new", go_mod_sum="h1:new-mod", label="fixture")
+
+    def test_new_checksum_pair_preserves_go_semantic_version_order(self):
+        module = CHECKSUM.FRAMEWORK_MODULE
+        before = [
+            "example.com/first v1.9.0/go.mod h1:older",
+            "example.com/first v1.10.0/go.mod h1:newer",
+        ]
+        stale = [
+            f"{module} v1.9.0 h1:stable",
+            f"{module} v1.9.0/go.mod h1:stable-mod",
+            f"{module} v1.10.0-rc.1 h1:prerelease",
+            f"{module} v1.11.0 h1:future",
+        ]
+        after = [
+            "z.example.com/last v2.9.0+incompatible h1:last",
+            "z.example.com/last v2.10.0+incompatible h1:last-newer",
+        ]
+        updated = CHECKSUM._updated_go_sum(
+            ("\n".join(before + stale + after) + "\n").encode(),
+            module=module, version="v1.10.0", module_sum="h1:new",
+            go_mod_sum="h1:new-mod", label="fixture",
+        )
+        self.assertEqual(updated.decode().splitlines(), before + [
+            f"{module} v1.10.0 h1:new", f"{module} v1.10.0/go.mod h1:new-mod",
+        ] + after)
 
     def test_candidate_tree_matches_prepared_metadata(self):
         version = CHECKSUM._load_release_policy(REPOSITORY_ROOT, reference="HEAD")["nextPublicVersion"]

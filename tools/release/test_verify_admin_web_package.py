@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 
 TOOLS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(TOOLS_DIR))
@@ -153,6 +155,24 @@ class AdminWebPackageTest(unittest.TestCase):
             sorted(classified_dependencies),
             sorted(manifest["dependencies"]),
         )
+
+    def test_repository_dependency_overrides_match_verifier_and_seed_lock(self):
+        root = TOOLS_DIR.parents[1]
+        manifest = json.loads((root / "web/antd-v6/package.json").read_text(encoding="utf-8"))
+        expected = manifest["mssAdminDistribution"]["runtimeOverrides"]
+        self.assertEqual(PACKAGE.ADMIN_WEB_RUNTIME_OVERRIDES, expected)
+        self.assertEqual(manifest["pnpm"]["overrides"], expected)
+
+        template = json.loads((root / "templates/application/web/package.json").read_text(encoding="utf-8"))
+        self.assertEqual(template["pnpm"]["overrides"], expected)
+        for relative in (
+            "web/antd-v6/pnpm-workspace.yaml",
+            "web/antd-v6/pnpm-lock.yaml",
+            "templates/application/web/pnpm-lock.yaml",
+        ):
+            with self.subTest(path=relative):
+                document = yaml.safe_load((root / relative).read_text(encoding="utf-8"))
+                self.assertEqual(document["overrides"], expected)
 
     def test_rejects_missing_or_incorrect_public_metadata(self):
         cases = (

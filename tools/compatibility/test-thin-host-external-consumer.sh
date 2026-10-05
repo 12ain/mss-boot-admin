@@ -358,6 +358,11 @@ new_app_raw="${raw_report_dir}/new-app.json"
 )
 sanitize_json_report "${new_app_raw}" "${report_dir}/new-app.json"
 
+# Validate the generated seed lock before a local-tarball add can repair drift.
+# Lock-only frozen install checks the published graph without requiring a public
+# candidate package; the generated lock already binds the local registry tarball.
+run_pnpm --dir "${host_root}/web" install --frozen-lockfile --lockfile-only --ignore-scripts
+
 for required in \
   cmd/server/main.go \
   internal/modules/all \
@@ -445,9 +450,11 @@ jq -e \
      "axios": "0.34.0",
      "brace-expansion@1": "1.1.21",
      "brace-expansion@2": "2.1.7",
-     "fast-uri": "3.1.7",
+     "fast-uri": "3.1.8",
+     "hono": "4.13.7",
      "js-yaml@3": "3.15.2",
      "js-yaml@4": "4.3.2",
+     "moment": "2.31.0",
      "piscina@4": "4.9.4",
      "react": "19.2.8",
      "react-dom": "19.2.8",

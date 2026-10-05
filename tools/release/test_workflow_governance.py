@@ -432,15 +432,18 @@ class WorkflowGovernanceTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn('candidate_dependency_mode="repository-workspace"', script)
         self.assertIn('candidate_dependency_mode="public-module"', script)
+        self.assertIn('candidate_build_gowork="${candidate_gowork}"', script)
+        self.assertIn('candidate_build_gowork="${work_dir}/go.work"', script)
+        self.assertIn('prepare-isolated-go-workspace.py', script)
         self.assertIn(
-            'GOWORK="${candidate_gowork}" go build -trimpath', script
+            'GOWORK="${candidate_build_gowork}" go build -trimpath', script
         )
         self.assertIn(
-            'GOWORK="${candidate_gowork}" go test ./cmd/migrate/migration/system',
+            'GOWORK="${candidate_build_gowork}" go test ./cmd/migrate/migration/system',
             script,
         )
         self.assertIn(
-            'GOWORK="${candidate_gowork}" go list -m', script
+            'GOWORK="${candidate_build_gowork}" go list -m', script
         )
         self.assertIn('GOWORK=off go build -trimpath', script)
         self.assertIn('"candidateDependencyMode": sys.argv[16]', script)
@@ -628,6 +631,10 @@ class WorkflowGovernanceTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("setsid --fork", process_group_helper)
         self.assertNotIn('wait "${pid}"', process_group_helper)
+        self.assertLess(
+            thin_host_script.index('run_pnpm --dir "${host_root}/web" install --frozen-lockfile --lockfile-only --ignore-scripts'),
+            thin_host_script.index("run_pnpm add"),
+        )
         self.assertLess(
             thin_host_script.index("fetch --frozen-lockfile"),
             thin_host_script.index("install --offline --frozen-lockfile"),
