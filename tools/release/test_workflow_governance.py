@@ -1341,7 +1341,8 @@ exit 66
             for step in steps
             if step.get("name") == "Prepare component-scoped release notes"
         )["run"]
-        self.assertIn("Broad quality verification was completed locally", notes)
+        self.assertIn("All required main workflows passed for this exact merged-main commit", notes)
+        self.assertNotIn("verification was completed locally", notes)
         self.assertIn("public Framework with GOWORK=off", notes)
         self.assertIn("go get github.com/mss-boot-io/mss-boot-admin/admin@", notes)
         self.assertNotIn("generate-notes", notes)

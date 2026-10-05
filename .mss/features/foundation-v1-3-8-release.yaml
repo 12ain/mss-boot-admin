@@ -7,7 +7,7 @@ metadata:
   owner: release-engineering
   labels:
     target-version: v1.3.8
-    release-status: preparation
+    release-status: retracted-recovery
     current-stable: v1.3.7
 spec:
   problem: >-
@@ -44,6 +44,19 @@ spec:
       operation: extend
       description: Coordinated version inputs, candidate checksums, qualification selection, and release notes.
   requirements:
+    - id: render-tag-installers
+      title: Bind published installer defaults to the release tag
+      description: Root packaging must render both installer defaults from the exact release version without changing the source stable defaults.
+      priority: must
+      actor: release-operator
+      module: release-preparation
+      rules:
+        - Render both installers deterministically from RELEASE_VERSION and reject malformed versions or ambiguous declarations.
+        - Retain checksum, provenance, executable permissions, and atomic replacement checks.
+        - Exercise default-version installation before publishing any component tag; explicit-version fixtures alone do not cover this path.
+        - The incomplete v1.3.8 publication at 2c44518c20660e3cfe91daf513809bd4753dbb24 was explicitly retracted by the maintainer; repair through a reviewed PR before recreating only these withdrawn v1.3.8 identities.
+        - Preserve the public Framework and Admin source bytes and module checksums during this exceptional same-version recovery; all other public versions remain immutable.
+        - Cleanup may delete only the withdrawn publication's exact recorded package integrity and image digests, after its Release objects and tags are absent.
     - id: repair-ci-causes
       title: Repair reproducible audit and consumer failures
       description: Fix the underlying defect while retaining complete vulnerability and clean-source checks.
@@ -81,6 +94,15 @@ spec:
       type: compatibility
       statement: Business-owned contributions and local work remain preserved; all runtime additions are compile-time opt-in.
   acceptance:
+    - id: release-installer-defaults
+      requirement: render-tag-installers
+      statement: Rendered installers use the exact requested tag without version arguments, reject tampered archives, and leave source stable defaults unchanged.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest tools/release/test_render_installers.py tools/release/test_root_release_workflow.py
     - id: ci-repair-regression
       requirement: repair-ci-causes
       statement: Focused dependency-audit and clean-consumer regressions pass, and the changed workflows retain independently necessary checks.

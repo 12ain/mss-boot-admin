@@ -486,8 +486,9 @@ jobs:
             [[ "${actual_entries}" == "${expected_windows_entries}" ]]
           done
 
-          install -m 0755 tools/install/install-mss.sh install-mss.sh
-          install -m 0644 tools/install/install-mss.ps1 install-mss.ps1
+          python3 tools/release/render_installers.py \
+            --version "${RELEASE_VERSION}" \
+            --source-directory tools/install --output-directory .
           grep -Fx "readonly DEFAULT_VERSION=\"${RELEASE_VERSION}\"" install-mss.sh >/dev/null
           grep -Fx "    [string]\$Version = '${RELEASE_VERSION}'," install-mss.ps1 >/dev/null
           bash -n install-mss.sh
@@ -739,7 +740,7 @@ jobs:
             echo
             echo '## Known limits'
             echo
-            echo 'The qualified dependency graph carries six accepted non-runtime advisories whose bounded acceptances expire on 2026-11-08. Runtime bundle exclusion, exact advisory identity, dependency scope, and expiry remain release gates; this is not a zero-vulnerability claim.'
+            echo 'Non-runtime dependency advisories are covered by the versioned security acceptance policies in this release source. Runtime bundle exclusion, exact advisory identity, dependency scope, and expiry remain release gates; this is not a zero-vulnerability claim.'
             echo
             echo 'Docs publication and the current-stable designation are reconciled independently after the package, image, tool, and registry surfaces are public.'
           } >> "${notes_file}"

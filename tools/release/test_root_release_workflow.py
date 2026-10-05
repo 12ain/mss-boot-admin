@@ -1,5 +1,8 @@
+import os
 import re
+import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -157,8 +160,8 @@ class RootReleaseWorkflowTest(unittest.TestCase):
             "expected_unix_entries=$'BUILD-INFO\\nLICENSE\\nmss\\nmss-mcp'",
             "expected_windows_entries=$'BUILD-INFO\\nLICENSE\\nmss-mcp.exe\\nmss.exe'",
             "python3 tools/release/check_portable_paths.py",
-            'install -m 0755 tools/install/install-mss.sh install-mss.sh',
-            'install -m 0644 tools/install/install-mss.ps1 install-mss.ps1',
+            'python3 tools/release/render_installers.py',
+            '--source-directory tools/install --output-directory .',
             'grep -Fx "readonly DEFAULT_VERSION=\\"${RELEASE_VERSION}\\"" install-mss.sh',
             'grep -Fx "    [string]\\$Version = \'${RELEASE_VERSION}\'," install-mss.ps1',
             "bash -n install-mss.sh",
@@ -200,6 +203,24 @@ class RootReleaseWorkflowTest(unittest.TestCase):
             "install-mss.ps1",
         ):
             self.assertIn(expected, upload.splitlines())
+
+    def test_assembly_actually_renders_and_checks_tag_specific_installer_defaults(self):
+        assemble = self.step("assemble", "Assemble release packages")["run"]
+        start = assemble.index("python3 tools/release/render_installers.py")
+        end = assemble.index("bash -n install-mss.sh", start) + len("bash -n install-mss.sh")
+        script = "set -euo pipefail\n" + assemble[start:end]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "tools/release").mkdir(parents=True)
+            shutil.copyfile(REPOSITORY_ROOT / "tools/release/render_installers.py",
+                            root / "tools/release/render_installers.py")
+            shutil.copytree(REPOSITORY_ROOT / "tools/install", root / "tools/install")
+            result = subprocess.run(["bash", "-c", script], cwd=root,
+                                    env={**os.environ, "RELEASE_VERSION": "v9.8.7"},
+                                    text=True, capture_output=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('DEFAULT_VERSION="v9.8.7"', (root / "install-mss.sh").read_text())
+            self.assertIn("$Version = 'v9.8.7'", (root / "install-mss.ps1").read_text())
 
     def test_assembly_smokes_exact_admin_web_package_without_public_npm(self):
         assemble = self.step("assemble", "Assemble release packages")["run"]
@@ -291,8 +312,8 @@ class RootReleaseWorkflowTest(unittest.TestCase):
             "discards every write after the backup time",
             "post-backup audit and business data outside the target database",
             "## Known limits",
-            "six accepted non-runtime advisories",
-            "2026-11-08",
+            "versioned security acceptance policies",
+            "dependency scope, and expiry remain release gates",
             "not a zero-vulnerability claim",
         ):
             self.assertIn(required, notes)

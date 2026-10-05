@@ -192,6 +192,7 @@ jobs:
             tools/release/test_generate_admin_web_sbom.py \
             tools/release/test_npm_release_workflow.py \
             tools/release/test_root_release_workflow.py \
+            tools/release/test_render_installers.py \
             tools/release/test_verify_framework_admin_checksum.py \
             tools/release/test_verify_admin_web_package.py \
             tools/release/test_verify_release_source.py \

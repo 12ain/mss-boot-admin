@@ -169,7 +169,7 @@ jobs:
             echo
             echo "Source commit: \`${GITHUB_SHA}\`"
             echo
-            echo 'Broad quality verification was completed locally on the exact clean merged-main commit. This release also resolved and tested the matching public Framework with GOWORK=off before publication.'
+            echo 'All required main workflows passed for this exact merged-main commit. This release also resolved and tested the matching public Framework with GOWORK=off before publication.'
           } >> "${notes_file}"
           echo "path=${notes_file}" >> "${GITHUB_OUTPUT}"
 

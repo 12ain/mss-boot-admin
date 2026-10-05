@@ -56,6 +56,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Test release installer defaults and scoped withdrawal
+        run: >-
+          python3 -m unittest tools/release/test_render_installers.py
+          tools/release/test_withdraw_failed_v138.py
+
       - name: Setup Go
         uses: actions/setup-go@v7
         with:

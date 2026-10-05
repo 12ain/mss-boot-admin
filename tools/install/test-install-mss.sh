@@ -2,6 +2,12 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+installer="${MSS_INSTALLER_TEST_PATH:-${repository_root}/tools/install/install-mss.sh}"
+version="${MSS_INSTALLER_TEST_VERSION:-v1.3.7}"
+[[ "${version}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+  echo "installer test version must be an exact stable vX.Y.Z" >&2
+  exit 2
+}
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/mss-installer-test.XXXXXX")"
 case "${test_root}" in
   "${TMPDIR:-/tmp}"/mss-installer-test.*) ;;
@@ -42,16 +48,16 @@ for command_name in mss mss-mcp; do
     # This is source for the generated fixture, so its positional parameter
     # must remain literal until that fixture is executed.
     # shellcheck disable=SC2016
-    printf 'if [[ "${1:-}" == "--version" ]]; then echo "%s version v1.3.7 (commit %s, timestamp %s)"; exit 0; fi\n' "${command_name}" "${commit}" "${timestamp}"
+    printf 'if [[ "${1:-}" == "--version" ]]; then echo "%s version %s (commit %s, timestamp %s)"; exit 0; fi\n' "${command_name}" "${version}" "${commit}" "${timestamp}"
     echo 'exit 0'
   } > "${command_path}"
   chmod 0755 "${command_path}"
 done
-printf 'version=v1.3.7\ncommit=%s\ntimestamp=%s\n' "${commit}" "${timestamp}" > "${fixture}/archive/BUILD-INFO"
+printf 'version=%s\ncommit=%s\ntimestamp=%s\n' "${version}" "${commit}" "${timestamp}" > "${fixture}/archive/BUILD-INFO"
 printf 'test-only license fixture\n' > "${fixture}/archive/LICENSE"
-asset="mss-tools-v1.3.7-${platform}-${architecture}.tar.gz"
+asset="mss-tools-${version}-${platform}-${architecture}.tar.gz"
 tar -czf "${fixture}/${asset}" -C "${fixture}/archive" BUILD-INFO LICENSE mss mss-mcp
-"${checksum_command[@]}" "${fixture}/${asset}" | sed "s#${fixture}/##" > "${fixture}/SHA256SUMS.tools-v1.3.7"
+"${checksum_command[@]}" "${fixture}/${asset}" | sed "s#${fixture}/##" > "${fixture}/SHA256SUMS.tools-${version}"
 
 cat > "${fake_bin}/curl" <<'EOF'
 #!/usr/bin/env bash
@@ -66,6 +72,10 @@ while [[ "$#" -gt 0 ]]; do
     *) url="$1"; shift ;;
   esac
 done
+[[ "${url}" == "https://github.com/mss-boot-io/mss-boot-admin/releases/download/${MSS_INSTALL_EXPECTED_VERSION}/"* ]] || {
+  echo "installer requested an unexpected release URL: ${url}" >&2
+  exit 1
+}
 cp -- "${MSS_INSTALL_FIXTURE}/$(basename "${url}")" "${output}"
 EOF
 chmod 0755 "${fake_bin}/curl"
@@ -90,15 +100,15 @@ command -p mv "$@"
 EOF
 chmod 0755 "${fake_bin}/mv"
 
-PATH="${fake_bin}:${PATH}" MSS_INSTALL_FIXTURE="${fixture}" \
-  bash "${repository_root}/tools/install/install-mss.sh" \
-    --version v1.3.7 \
+# The first install deliberately omits --version to exercise the rendered default.
+PATH="${fake_bin}:${PATH}" MSS_INSTALL_FIXTURE="${fixture}" MSS_INSTALL_EXPECTED_VERSION="${version}" \
+  bash "${installer}" \
     --install-dir "${install_dir}"
 
 for command_name in mss mss-mcp; do
   test -x "${install_dir}/${command_name}"
   output="$("${install_dir}/${command_name}" --version)"
-  [[ "${output}" == *v1.3.7* ]]
+  [[ "${output}" == *"${version}"* ]]
   [[ "${output}" == *"${commit}"* ]]
   [[ "${output}" == *"${timestamp}"* ]]
 done
@@ -108,10 +118,10 @@ printf 'old mss-mcp marker\n' >> "${install_dir}/mss-mcp"
 before_atomic_mss="$("${checksum_command[@]}" "${install_dir}/mss" | awk '{print $1}')"
 before_atomic_mcp="$("${checksum_command[@]}" "${install_dir}/mss-mcp" | awk '{print $1}')"
 failure_marker="${test_root}/second-move-failed"
-if PATH="${fake_bin}:${PATH}" MSS_INSTALL_FIXTURE="${fixture}" \
+if PATH="${fake_bin}:${PATH}" MSS_INSTALL_FIXTURE="${fixture}" MSS_INSTALL_EXPECTED_VERSION="${version}" \
   MSS_INSTALL_FAIL_SECOND_MOVE=1 MSS_INSTALL_FAILURE_MARKER="${failure_marker}" \
-  bash "${repository_root}/tools/install/install-mss.sh" \
-    --version v1.3.7 \
+  bash "${installer}" \
+    --version "${version}" \
     --install-dir "${install_dir}" >/dev/null 2>&1; then
   echo "installer unexpectedly succeeded after the second replacement failed" >&2
   exit 1
@@ -123,15 +133,15 @@ test "${before_atomic_mss}" = "${after_atomic_mss}"
 test "${before_atomic_mcp}" = "${after_atomic_mcp}"
 for command_name in mss mss-mcp; do
   output="$("${install_dir}/${command_name}" --version)"
-  [[ "${output}" == *v1.3.7* ]]
+  [[ "${output}" == *"${version}"* ]]
   [[ "${output}" == *"${commit}"* ]]
 done
 
 before_mss="$("${checksum_command[@]}" "${install_dir}/mss" | awk '{print $1}')"
 printf 'tamper\n' >> "${fixture}/${asset}"
-if PATH="${fake_bin}:${PATH}" MSS_INSTALL_FIXTURE="${fixture}" \
-  bash "${repository_root}/tools/install/install-mss.sh" \
-    --version v1.3.7 \
+if PATH="${fake_bin}:${PATH}" MSS_INSTALL_FIXTURE="${fixture}" MSS_INSTALL_EXPECTED_VERSION="${version}" \
+  bash "${installer}" \
+    --version "${version}" \
     --install-dir "${install_dir}" >/dev/null 2>&1; then
   echo "installer accepted a tampered archive" >&2
   exit 1
@@ -139,7 +149,7 @@ fi
 after_mss="$("${checksum_command[@]}" "${install_dir}/mss" | awk '{print $1}')"
 test "${before_mss}" = "${after_mss}"
 
-if bash "${repository_root}/tools/install/install-mss.sh" --version latest >/dev/null 2>&1; then
+if bash "${installer}" --version latest >/dev/null 2>&1; then
   echo "installer accepted a moving version" >&2
   exit 1
 fi
